@@ -25,21 +25,19 @@ class ServerManager: ObservableObject {
     }
 
     func checkCCRExists() {
-        let result = runShell("/usr/bin/which", arguments: ["ccr"])
-        ccrFound = result.exitCode == 0
+        let result = shell("which ccr")
+        ccrFound = result.exitCode == 0 && !result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     func checkStatus() {
+        // First try PID file
         if let pidString = try? String(contentsOfFile: pidPath, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
            let pid = Int32(pidString) {
             isRunning = kill(pid, 0) == 0
             return
         }
-        let result = runShell("/usr/bin/curl", arguments: [
-            "-s", "-o", "/dev/null", "-w", "%{http_code}",
-            "--connect-timeout", "2",
-            "http://127.0.0.1:\(port)/"
-        ])
+        // Fallback: HTTP check
+        let result = shell("curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 http://127.0.0.1:\(port)/")
         isRunning = result.exitCode == 0 && result.output.trimmingCharacters(in: .whitespacesAndNewlines) != "000"
     }
 
@@ -50,10 +48,11 @@ class ServerManager: ObservableObject {
     private func runCCR(_ command: String) {
         errorMessage = nil
         DispatchQueue.global().async { [weak self] in
-            let result = self?.runShell("/usr/bin/env", arguments: ["ccr", command])
+            let result = self?.shell("ccr \(command)")
             DispatchQueue.main.async {
                 if let result = result, result.exitCode != 0 {
-                    self?.errorMessage = result.output.isEmpty ? "Command failed (exit \(result.exitCode))" : result.output
+                    let msg = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self?.errorMessage = msg.isEmpty ? "Command failed (exit \(result.exitCode))" : msg
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     self?.checkStatus()
@@ -71,16 +70,12 @@ class ServerManager: ObservableObject {
         }
     }
 
-    nonisolated private func runShell(_ command: String, arguments: [String] = []) -> (output: String, exitCode: Int32) {
+    /// Run a command through login shell to get full user PATH (nvm, homebrew, etc.)
+    nonisolated private func shell(_ command: String) -> (output: String, exitCode: Int32) {
         let process = Process()
         let pipe = Pipe()
-
-        // Run through login shell to get full PATH (nvm, homebrew, etc.)
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        let fullCommand = ([command] + arguments)
-            .map { $0.contains(" ") ? "'\($0)'" : $0 }
-            .joined(separator: " ")
-        process.arguments = ["-l", "-c", fullCommand]
+        process.arguments = ["-l", "-c", command]
         process.standardOutput = pipe
         process.standardError = pipe
 
