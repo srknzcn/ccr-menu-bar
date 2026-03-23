@@ -8,6 +8,7 @@ class ConfigManager: ObservableObject {
 
     @Published var config: CCRConfig?
     @Published var errorMessage: String?
+    @Published var hasUnsavedChanges = false
 
     private let configURL: URL
     private let writeQueue = DispatchQueue(label: "com.ccr.menubar.configwrite")
@@ -80,7 +81,15 @@ class ConfigManager: ObservableObject {
     func setRoute(_ route: RouterRoute, provider: String, model: String) {
         guard config != nil else { return }
         route.setValue("\(provider),\(model)", on: &config!.Router)
+        hasUnsavedChanges = true
+    }
+
+    func saveAndRestart(serverManager: ServerManager) {
         save()
+        hasUnsavedChanges = false
+        if serverManager.isRunning {
+            serverManager.restart()
+        }
     }
 
     // MARK: - File Watching

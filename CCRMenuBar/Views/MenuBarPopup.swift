@@ -60,7 +60,17 @@ struct MenuBarPopup: View {
                 FooterButton(title: "Settings", icon: "gearshape") {
                     openSettings()
                 }
+
                 Spacer()
+
+                // Save & Restart button
+                SaveRestartButton(
+                    isEnabled: configManager.hasUnsavedChanges,
+                    action: {
+                        configManager.saveAndRestart(serverManager: serverManager)
+                    }
+                )
+
                 FooterButton(title: "Quit", icon: "power") {
                     NSApplication.shared.terminate(nil)
                 }
@@ -69,6 +79,44 @@ struct MenuBarPopup: View {
             .padding(.vertical, 8)
         }
         .frame(width: 360)
+    }
+}
+
+struct SaveRestartButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+    @State private var showDone = false
+
+    var body: some View {
+        Button {
+            action()
+            withAnimation(.easeInOut(duration: 0.2)) { showDone = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation { showDone = false }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: showDone ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(showDone ? "Done" : "Save & Restart")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(showDone ? .green : .white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                showDone ? Color.green.opacity(0.2) :
+                    (isEnabled ? (isHovered ? Color.blue.opacity(0.9) : Color.blue.opacity(0.75)) : Color.gray.opacity(0.2)),
+                in: Capsule()
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled && !showDone)
+        .onHover { isHovered = $0 }
+        .padding(.trailing, 6)
+        .animation(.easeInOut(duration: 0.2), value: isEnabled)
+        .animation(.easeInOut(duration: 0.2), value: showDone)
     }
 }
 
