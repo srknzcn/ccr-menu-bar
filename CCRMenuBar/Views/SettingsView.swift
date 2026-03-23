@@ -31,7 +31,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(minWidth: 600, minHeight: 480)
+        .frame(minWidth: 720, minHeight: 560)
     }
 }
 

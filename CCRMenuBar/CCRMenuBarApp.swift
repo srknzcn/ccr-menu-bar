@@ -19,6 +19,6 @@ struct CCRMenuBarApp: App {
         Window("CCR Settings", id: "settings") {
             SettingsView(configManager: configManager)
         }
-        .defaultSize(width: 600, height: 500)
+        .defaultSize(width: 760, height: 600)
     }
 }
