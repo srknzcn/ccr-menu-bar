@@ -17,9 +17,8 @@ struct CCRMenuBarApp: App {
         .menuBarExtraStyle(.window)
 
         Window("CCR Settings", id: "settings") {
-            Text("Settings — coming next")
-                .frame(width: 500, height: 400)
+            SettingsView(configManager: configManager)
         }
-        .defaultSize(width: 500, height: 400)
+        .defaultSize(width: 600, height: 500)
     }
 }
