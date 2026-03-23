@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum RouterRoute: String, CaseIterable, Identifiable {
     case `default` = "default"
@@ -18,6 +19,28 @@ enum RouterRoute: String, CaseIterable, Identifiable {
         case .longContext: return "Long Context"
         case .webSearch: return "Web Search"
         case .image: return "Image"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .default: return "cpu"
+        case .think: return "brain.head.profile"
+        case .background: return "gearshape.2"
+        case .longContext: return "text.book.closed"
+        case .webSearch: return "globe"
+        case .image: return "photo"
+        }
+    }
+
+    var accentColor: Color {
+        switch self {
+        case .default: return .blue
+        case .think: return .purple
+        case .background: return .gray
+        case .longContext: return .orange
+        case .webSearch: return .green
+        case .image: return .pink
         }
     }
 
