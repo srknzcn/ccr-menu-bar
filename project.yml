@@ -1,0 +1,39 @@
+name: CCRMenuBar
+options:
+  bundleIdPrefix: com.ccr
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: true
+
+targets:
+  CCRMenuBar:
+    type: application
+    platform: macOS
+    sources:
+      - path: CCRMenuBar
+        excludes:
+          - "Resources/**"
+    resources:
+      - path: CCRMenuBar/Resources/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ccr.menubar
+        PRODUCT_NAME: "CCR Menu Bar"
+        INFOPLIST_FILE: CCRMenuBar/Info.plist
+        CODE_SIGN_ENTITLEMENTS: CCRMenuBar/CCRMenuBar.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: true
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/../Frameworks"
+        ENABLE_APP_SANDBOX: true
+        ENABLE_HARDENED_RUNTIME: true
