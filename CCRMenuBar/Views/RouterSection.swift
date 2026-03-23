@@ -1,11 +1,12 @@
 import SwiftUI
+import AppKit
 
 struct RouterSection: View {
     @ObservedObject var configManager: ConfigManager
 
     var body: some View {
         if let config = configManager.config {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 ForEach(RouterRoute.allCases) { route in
                     let currentValue = route.getValue(from: config.Router) ?? ""
                     RouteRow(
@@ -51,92 +52,106 @@ struct RouteRow: View {
         return parts.count > 1 ? String(parts[1]) : currentValue
     }
 
-    private var isConfigured: Bool {
-        !currentValue.isEmpty
-    }
+    private var isConfigured: Bool { !currentValue.isEmpty }
 
     var body: some View {
-        Menu {
-            let grouped = Dictionary(grouping: models, by: { $0.provider })
-            let sortedProviders = grouped.keys.sorted()
-
-            ForEach(sortedProviders, id: \.self) { provider in
-                Section(provider) {
-                    ForEach(grouped[provider] ?? [], id: \.model) { item in
-                        let value = "\(item.provider),\(item.model)"
-                        Button {
-                            onSelect(item.provider, item.model)
-                        } label: {
-                            HStack {
-                                Text(item.model)
-                                if currentValue == value {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 10, weight: .bold))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        Button {
+            showMenu()
         } label: {
-            routeLabel
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .onHover { isHovered = $0 }
-    }
-
-    private var routeLabel: some View {
-        HStack(spacing: 0) {
-            // Left: icon + route name
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
+                // LEFT: icon + route name
                 Image(systemName: route.icon)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(route.accentColor)
-                    .frame(width: 24, height: 24)
-                    .background(route.accentColor.opacity(isHovered ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 6))
+                    .frame(width: 22, height: 22)
+                    .background(route.accentColor.opacity(isHovered ? 0.2 : 0.1), in: RoundedRectangle(cornerRadius: 5))
 
                 Text(route.displayName)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
-            }
+                    .padding(.leading, 8)
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 8)
 
-            // Right: provider / model
-            if isConfigured {
-                HStack(spacing: 5) {
+                // RIGHT: provider / model
+                if isConfigured {
                     Text(providerName)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(route.accentColor.opacity(0.6), in: Capsule())
+                        .background(route.accentColor.opacity(0.7), in: Capsule())
 
                     Text(modelName)
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .padding(.leading, 5)
+                } else {
+                    Text("not set")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.quaternary)
                 }
-            } else {
-                Text("—")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.quaternary)
-            }
 
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 7, weight: .bold))
-                .foregroundStyle(.quaternary)
-                .padding(.leading, 6)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.quaternary)
+                    .padding(.leading, 6)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                isHovered ? Color.primary.opacity(0.06) : .clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isHovered ? Color.primary.opacity(0.05) : .clear,
-            in: RoundedRectangle(cornerRadius: 8)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private func showMenu() {
+        let menu = NSMenu()
+        let grouped = Dictionary(grouping: models, by: { $0.provider })
+        let sortedProviders = grouped.keys.sorted()
+
+        for (i, provider) in sortedProviders.enumerated() {
+            if i > 0 { menu.addItem(.separator()) }
+
+            let header = NSMenuItem(title: provider.uppercased(), action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+            header.attributedTitle = NSAttributedString(string: provider, attributes: attrs)
+            menu.addItem(header)
+
+            for item in (grouped[provider] ?? []) {
+                let value = "\(item.provider),\(item.model)"
+                let menuItem = NSMenuItem(title: item.model, action: #selector(RouteMenuTarget.menuItemClicked(_:)), keyEquivalent: "")
+                menuItem.target = RouteMenuTarget.shared
+                menuItem.representedObject = (item.provider, item.model, onSelect)
+                if currentValue == value {
+                    menuItem.state = .on
+                }
+                menu.addItem(menuItem)
+            }
+        }
+
+        if let event = NSApp.currentEvent {
+            NSMenu.popUpContextMenu(menu, with: event, for: NSApp.keyWindow?.contentView ?? NSView())
+        }
+    }
+}
+
+// NSMenu target for handling clicks
+class RouteMenuTarget: NSObject {
+    static let shared = RouteMenuTarget()
+
+    @objc func menuItemClicked(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? (String, String, (String, String) -> Void) else { return }
+        let (provider, model, callback) = info
+        callback(provider, model)
     }
 }
