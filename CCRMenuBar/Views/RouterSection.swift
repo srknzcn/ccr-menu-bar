@@ -5,7 +5,7 @@ struct RouterSection: View {
 
     var body: some View {
         if let config = configManager.config {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ForEach(RouterRoute.allCases) { route in
                     let currentValue = route.getValue(from: config.Router) ?? ""
                     RouteRow(
@@ -46,14 +46,17 @@ struct RouteRow: View {
     }
 
     private var modelName: String {
-        guard !currentValue.isEmpty else { return "Not set" }
+        guard !currentValue.isEmpty else { return "Not configured" }
         let parts = currentValue.split(separator: ",", maxSplits: 1)
         return parts.count > 1 ? String(parts[1]) : currentValue
     }
 
+    private var isConfigured: Bool {
+        !currentValue.isEmpty
+    }
+
     var body: some View {
         Menu {
-            // Group models by provider
             let grouped = Dictionary(grouping: models, by: { $0.provider })
             let sortedProviders = grouped.keys.sorted()
 
@@ -77,49 +80,66 @@ struct RouteRow: View {
                 }
             }
         } label: {
-            HStack(spacing: 10) {
-                // Route icon with accent background
-                Image(systemName: route.icon)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(route.accentColor)
-                    .frame(width: 26, height: 26)
-                    .background(route.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(route.displayName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
-                    if !providerName.isEmpty {
-                        Text(providerName)
-                            .font(.system(size: 9, weight: .regular))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                Spacer()
-
-                // Model name pill
-                Text(modelName)
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(currentValue.isEmpty ? .tertiary : .secondary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.quaternary.opacity(0.5), in: Capsule())
-
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                isHovered ? Color.primary.opacity(0.04) : .clear,
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            routeLabel
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .onHover { isHovered = $0 }
+    }
+
+    private var routeLabel: some View {
+        HStack(spacing: 0) {
+            // Left: icon
+            Image(systemName: route.icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(route.accentColor)
+                .frame(width: 28, height: 28)
+                .background(route.accentColor.opacity(isHovered ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 7))
+
+            // Middle: route name + model
+            VStack(alignment: .leading, spacing: 2) {
+                Text(route.displayName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 4) {
+                    if isConfigured {
+                        Text(providerName)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(route.accentColor.opacity(0.5), in: Capsule())
+
+                        Text(modelName)
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.primary.opacity(0.8))
+                            .lineLimit(1)
+                    } else {
+                        Text("Not configured")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .italic()
+                    }
+                }
+            }
+            .padding(.leading, 10)
+
+            Spacer(minLength: 8)
+
+            // Right: chevron
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.trailing, 4)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isHovered ? Color.primary.opacity(0.06) : .clear,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 }

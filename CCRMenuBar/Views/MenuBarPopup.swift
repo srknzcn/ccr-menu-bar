@@ -7,25 +7,10 @@ struct MenuBarPopup: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.blue)
-                Text("Claude Code Router")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Text("v1.0")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            // Server Status Card
+            // Server Status
             ServerStatusView(serverManager: serverManager)
                 .padding(.horizontal, 12)
+                .padding(.top, 12)
 
             // Config error
             if let error = configManager.errorMessage {
@@ -37,29 +22,38 @@ struct MenuBarPopup: View {
                         .lineLimit(2)
                 }
                 .foregroundStyle(.red)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 .padding(.horizontal, 12)
-                .padding(.top, 8)
+                .padding(.top, 10)
             }
 
-            // Section label
-            HStack {
-                Text("MODEL ROUTING")
-                    .font(.system(size: 10, weight: .semibold))
+            // Section divider
+            HStack(spacing: 6) {
+                Text("ROUTES")
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.tertiary)
-                    .tracking(0.5)
-                Spacer()
+                    .tracking(1)
+                Rectangle()
+                    .fill(.quaternary)
+                    .frame(height: 0.5)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
 
             // Router Section
             RouterSection(configManager: configManager)
                 .padding(.horizontal, 8)
+
+            // Footer divider
+            Rectangle()
+                .fill(.quaternary)
+                .frame(height: 0.5)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
 
             // Footer
             HStack(spacing: 0) {
@@ -71,11 +65,10 @@ struct MenuBarPopup: View {
                     NSApplication.shared.terminate(nil)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
-        .frame(width: 340)
+        .frame(width: 360)
     }
 }
 
@@ -87,7 +80,7 @@ struct FooterButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .medium))
                 Text(title)

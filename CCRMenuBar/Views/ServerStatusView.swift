@@ -10,25 +10,26 @@ struct ServerStatusView: View {
             ZStack {
                 if serverManager.isRunning {
                     Circle()
-                        .fill(.green.opacity(0.3))
-                        .frame(width: 24, height: 24)
-                        .scaleEffect(pulseAnimation ? 1.3 : 1.0)
-                        .opacity(pulseAnimation ? 0 : 0.6)
-                        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false), value: pulseAnimation)
+                        .fill(.green.opacity(0.25))
+                        .frame(width: 28, height: 28)
+                        .scaleEffect(pulseAnimation ? 1.4 : 1.0)
+                        .opacity(pulseAnimation ? 0 : 0.5)
+                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: false), value: pulseAnimation)
                 }
                 Circle()
                     .fill(serverManager.isRunning ? .green : Color(.systemRed))
                     .frame(width: 10, height: 10)
+                    .shadow(color: serverManager.isRunning ? .green.opacity(0.5) : .clear, radius: 4)
             }
-            .frame(width: 24, height: 24)
+            .frame(width: 28, height: 28)
             .onAppear { pulseAnimation = true }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CCR Server")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(serverManager.isRunning ? "Running" : "Stopped")
                     .font(.system(size: 13, weight: .semibold))
+                Text("127.0.0.1:\(ConfigManager.shared.config?.PORT ?? 3456)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
             }
 
             Spacer()
@@ -54,22 +55,23 @@ struct ServerStatusView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay {
+        .background {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+        }
+        .overlay(alignment: .bottom) {
             if let error = serverManager.errorMessage {
-                VStack {
-                    Spacer()
-                    Text(error)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.red.opacity(0.1), in: Capsule())
-                }
-                .padding(.bottom, -16)
+                Text(error)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(.red.opacity(0.1), in: Capsule())
+                    .offset(y: 14)
             }
         }
     }
@@ -87,10 +89,10 @@ struct StatusButton: View {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(color)
-                .frame(width: 26, height: 26)
+                .frame(width: 28, height: 28)
                 .background(
-                    isHovered ? color.opacity(0.15) : color.opacity(0.08),
-                    in: RoundedRectangle(cornerRadius: 6)
+                    isHovered ? color.opacity(0.18) : color.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: 7)
                 )
         }
         .buttonStyle(.plain)
