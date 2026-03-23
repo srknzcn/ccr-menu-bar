@@ -56,7 +56,7 @@ class ConfigManager: ObservableObject {
                 let tempURL = self.configURL.deletingLastPathComponent()
                     .appendingPathComponent(".config.json.tmp")
                 try data.write(to: tempURL, options: .atomic)
-                try FileManager.default.moveItem(at: tempURL, to: self.configURL)
+                _ = try FileManager.default.replaceItemAt(self.configURL, withItemAt: tempURL)
                 DispatchQueue.main.async {
                     self.isWriting = false
                     self.errorMessage = nil
