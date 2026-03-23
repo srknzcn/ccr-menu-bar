@@ -165,6 +165,14 @@ struct ProvidersTab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
 
+                // Transformer card
+                TransformerCard(
+                    transformer: Binding(
+                        get: { configManager.config?.Providers[index].transformer ?? TransformerConfig() },
+                        set: { configManager.config?.Providers[index].transformer = $0 }
+                    )
+                )
+
                 // Save button
                 HStack {
                     Spacer()
@@ -239,6 +247,132 @@ struct ProviderListRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+struct TransformerCard: View {
+    @Binding var transformer: TransformerConfig
+    @State private var showAddMenu = false
+
+    private var activeTransformers: [String] {
+        transformer.use ?? []
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.teal)
+                    .frame(width: 24, height: 24)
+                    .background(Color.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
+                Text("Transformers")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text("\(activeTransformers.count)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(.quaternary.opacity(0.5), in: Capsule())
+            }
+
+            if activeTransformers.isEmpty {
+                Text("No transformers configured")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .italic()
+                    .padding(.vertical, 4)
+                    .padding(.leading, 32)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(Array(activeTransformers.enumerated()), id: \.offset) { idx, name in
+                        TransformerRow(name: name, displayName: BuiltInTransformer(rawValue: name)?.displayName ?? name) {
+                            var list = transformer.use ?? []
+                            list.remove(at: idx)
+                            transformer.use = list.isEmpty ? nil : list
+                        }
+                    }
+                }
+            }
+
+            // Add transformer
+            Menu {
+                ForEach(BuiltInTransformer.allCases) { t in
+                    Button {
+                        var list = transformer.use ?? []
+                        list.append(t.rawValue)
+                        transformer.use = list
+                    } label: {
+                        HStack {
+                            Text(t.displayName)
+                            if activeTransformers.contains(t.rawValue) {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10))
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Add Transformer")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.teal)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.teal.opacity(0.1), in: Capsule())
+            }
+            .menuStyle(.borderlessButton)
+            .padding(.leading, 28)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct TransformerRow: View {
+    let name: String
+    let displayName: String
+    let onDelete: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 9))
+                .foregroundStyle(.teal)
+            Text(displayName)
+                .font(.system(size: 12, weight: .medium))
+            if displayName != name {
+                Text(name)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            if isHovered {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            isHovered ? Color.primary.opacity(0.04) : .clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
     }
 }
 
