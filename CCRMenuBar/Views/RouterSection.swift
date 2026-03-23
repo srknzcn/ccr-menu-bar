@@ -5,7 +5,7 @@ struct RouterSection: View {
 
     var body: some View {
         if let config = configManager.config {
-            VStack(spacing: 2) {
+            VStack(spacing: 6) {
                 ForEach(RouterRoute.allCases) { route in
                     let currentValue = route.getValue(from: config.Router) ?? ""
                     RouteRow(
@@ -46,7 +46,7 @@ struct RouteRow: View {
     }
 
     private var modelName: String {
-        guard !currentValue.isEmpty else { return "Not configured" }
+        guard !currentValue.isEmpty else { return "" }
         let parts = currentValue.split(separator: ",", maxSplits: 1)
         return parts.count > 1 ? String(parts[1]) : currentValue
     }
@@ -89,55 +89,52 @@ struct RouteRow: View {
 
     private var routeLabel: some View {
         HStack(spacing: 0) {
-            // Left: icon
-            Image(systemName: route.icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(route.accentColor)
-                .frame(width: 28, height: 28)
-                .background(route.accentColor.opacity(isHovered ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 7))
+            // Left: icon + route name
+            HStack(spacing: 8) {
+                Image(systemName: route.icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(route.accentColor)
+                    .frame(width: 24, height: 24)
+                    .background(route.accentColor.opacity(isHovered ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 6))
 
-            // Middle: route name + model
-            VStack(alignment: .leading, spacing: 2) {
                 Text(route.displayName)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
-
-                HStack(spacing: 4) {
-                    if isConfigured {
-                        Text(providerName)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(route.accentColor.opacity(0.5), in: Capsule())
-
-                        Text(modelName)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.primary.opacity(0.8))
-                            .lineLimit(1)
-                    } else {
-                        Text("Not configured")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .italic()
-                    }
-                }
             }
-            .padding(.leading, 10)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 12)
 
-            // Right: chevron
+            // Right: provider / model
+            if isConfigured {
+                HStack(spacing: 5) {
+                    Text(providerName)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(route.accentColor.opacity(0.6), in: Capsule())
+
+                    Text(modelName)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            } else {
+                Text("—")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.quaternary)
+            }
+
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.trailing, 4)
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(.quaternary)
+                .padding(.leading, 6)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            isHovered ? Color.primary.opacity(0.06) : .clear,
+            isHovered ? Color.primary.opacity(0.05) : .clear,
             in: RoundedRectangle(cornerRadius: 8)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
