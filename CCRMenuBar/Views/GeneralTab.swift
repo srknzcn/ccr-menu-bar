@@ -1,14 +1,35 @@
 import SwiftUI
+import ServiceManagement
 
 struct GeneralTab: View {
     @ObservedObject var configManager: ConfigManager
     @State private var showAPIKey = false
     @State private var showSaved = false
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 if configManager.config != nil {
+                    SettingsCard(title: "App", icon: "app.badge", color: .indigo) {
+                        SettingsRow(label: "Launch at Login") {
+                            Toggle("", isOn: $launchAtLogin)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                                .onChange(of: launchAtLogin) { _, newValue in
+                                    do {
+                                        if newValue {
+                                            try SMAppService.mainApp.register()
+                                        } else {
+                                            try SMAppService.mainApp.unregister()
+                                        }
+                                    } catch {
+                                        launchAtLogin = SMAppService.mainApp.status == .enabled
+                                    }
+                                }
+                        }
+                    }
+
                     SettingsCard(title: "Server", icon: "server.rack", color: .blue) {
                         SettingsRow(label: "Host") {
                             TextField("127.0.0.1", text: binding(\.HOST, default: "127.0.0.1"))
