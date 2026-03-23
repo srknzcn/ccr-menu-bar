@@ -12,10 +12,13 @@ class ServerManager: ObservableObject {
     private let pidPath: String
     private var port: Int { ConfigManager.shared.config?.PORT ?? 3456 }
 
+    /// Resolved full path to ccr binary, found once at init
+    private var ccrPath: String?
+
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         pidPath = "\(home)/.claude-code-router/.claude-code-router.pid"
-        checkCCRExists()
+        resolveCCRPath()
         checkStatus()
         startPolling()
     }
@@ -24,9 +27,52 @@ class ServerManager: ObservableObject {
         timer?.invalidate()
     }
 
-    func checkCCRExists() {
+    /// Find ccr binary path by sourcing user's shell profile
+    private func resolveCCRPath() {
+        // Try common nvm/node paths first (fast, no shell spawn)
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/.nvm/versions/node",  // nvm - scan for latest
+            "/usr/local/bin/ccr",
+            "/opt/homebrew/bin/ccr",
+            "\(home)/.bun/bin/ccr",
+            "\(home)/.local/bin/ccr",
+        ]
+
+        // Check nvm directory for ccr
+        let nvmBase = "\(home)/.nvm/versions/node"
+        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmBase) {
+            let sorted = versions.sorted().reversed() // newest first
+            for version in sorted {
+                let path = "\(nvmBase)/\(version)/bin/ccr"
+                if FileManager.default.isExecutableFile(atPath: path) {
+                    ccrPath = path
+                    ccrFound = true
+                    return
+                }
+            }
+        }
+
+        // Check other common paths
+        for path in candidates where !path.contains(".nvm") {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                ccrPath = path
+                ccrFound = true
+                return
+            }
+        }
+
+        // Last resort: interactive login shell
         let result = shell("which ccr")
-        ccrFound = result.exitCode == 0 && !result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let path = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.exitCode == 0 && !path.isEmpty && FileManager.default.isExecutableFile(atPath: path) {
+            ccrPath = path
+            ccrFound = true
+            return
+        }
+
+        ccrPath = nil
+        ccrFound = false
     }
 
     func checkStatus() {
@@ -37,8 +83,21 @@ class ServerManager: ObservableObject {
             return
         }
         // Fallback: HTTP check
-        let result = shell("curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 http://127.0.0.1:\(port)/")
-        isRunning = result.exitCode == 0 && result.output.trimmingCharacters(in: .whitespacesAndNewlines) != "000"
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--connect-timeout", "2", "http://127.0.0.1:\(port)/"]
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            isRunning = process.terminationStatus == 0 && output != "000"
+        } catch {
+            isRunning = false
+        }
     }
 
     func start() { runCCR("start") }
@@ -46,13 +105,44 @@ class ServerManager: ObservableObject {
     func restart() { runCCR("restart") }
 
     private func runCCR(_ command: String) {
+        guard let ccr = ccrPath else {
+            errorMessage = "ccr not found"
+            return
+        }
         errorMessage = nil
+        let ccrCopy = ccr
         DispatchQueue.global().async { [weak self] in
-            let result = self?.shell("ccr \(command)")
+            let process = Process()
+            let pipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: ccrCopy)
+            process.arguments = [command]
+            process.standardOutput = pipe
+            process.standardError = pipe
+
+            // Pass minimal env needed for node
+            var env: [String: String] = [:]
+            env["HOME"] = FileManager.default.homeDirectoryForCurrentUser.path
+            env["PATH"] = (URL(fileURLWithPath: ccrCopy).deletingLastPathComponent().path) + ":/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+            env["USER"] = NSUserName()
+            process.environment = env
+
+            var output = ""
+            var exitCode: Int32 = -1
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: data, encoding: .utf8) ?? ""
+                exitCode = process.terminationStatus
+            } catch {
+                output = error.localizedDescription
+                exitCode = -1
+            }
+
             DispatchQueue.main.async {
-                if let result = result, result.exitCode != 0 {
-                    let msg = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                    self?.errorMessage = msg.isEmpty ? "Command failed (exit \(result.exitCode))" : msg
+                if exitCode != 0 {
+                    let msg = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self?.errorMessage = msg.isEmpty ? "Command failed (exit \(exitCode))" : msg
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     self?.checkStatus()
@@ -70,21 +160,28 @@ class ServerManager: ObservableObject {
         }
     }
 
-    /// Run a command through login shell to get full user PATH (nvm, homebrew, etc.)
+    /// Run command through interactive login shell (fallback for PATH resolution)
     nonisolated private func shell(_ command: String) -> (output: String, exitCode: Int32) {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", command]
+        process.arguments = ["-i", "-l", "-c", command]
         process.standardOutput = pipe
         process.standardError = pipe
+        // Ensure HOME is set
+        process.environment = [
+            "HOME": FileManager.default.homeDirectoryForCurrentUser.path,
+            "USER": NSUserName()
+        ]
 
         do {
             try process.run()
             process.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? ""
-            return (output, process.terminationStatus)
+            // Strip terminal escape sequences from interactive shell
+            let clean = output.replacingOccurrences(of: "\\]\\d+;[^\\\\]*\\\\", with: "", options: .regularExpression)
+            return (clean, process.terminationStatus)
         } catch {
             return (error.localizedDescription, -1)
         }
