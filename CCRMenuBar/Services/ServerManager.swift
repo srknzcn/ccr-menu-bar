@@ -74,16 +74,15 @@ class ServerManager: ObservableObject {
     nonisolated private func runShell(_ command: String, arguments: [String] = []) -> (output: String, exitCode: Int32) {
         let process = Process()
         let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: command)
-        process.arguments = arguments
+
+        // Run through login shell to get full PATH (nvm, homebrew, etc.)
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        let fullCommand = ([command] + arguments)
+            .map { $0.contains(" ") ? "'\($0)'" : $0 }
+            .joined(separator: " ")
+        process.arguments = ["-l", "-c", fullCommand]
         process.standardOutput = pipe
         process.standardError = pipe
-
-        var env = ProcessInfo.processInfo.environment
-        if let path = env["PATH"] {
-            env["PATH"] = "/usr/local/bin:/opt/homebrew/bin:\(path)"
-        }
-        process.environment = env
 
         do {
             try process.run()
