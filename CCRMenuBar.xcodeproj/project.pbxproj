@@ -16,17 +16,23 @@
 		4D4897953630AF024050D493 /* GeneralTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */; };
 		5F85BE9A7FD1CE9E74287B7C /* RouterSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F815FBEF55C411A964A5C523 /* RouterSection.swift */; };
 		6954D0ABFA4EABB6C7EB67D9 /* CCRMenuBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D623336C1319268E142F3F /* CCRMenuBarApp.swift */; };
+		7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2629708DA2B111D5152B71 /* TokenUsageView.swift */; };
+		AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465589090D8BE2D14181C76D /* TokenUsageService.swift */; };
 		D7DD58B345D95DFCF3A53671 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD759C558320712E04C3207A /* SettingsView.swift */; };
 		E1E35482FFACED1C46494768 /* RouterRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992D6FE72487B94C51608B58 /* RouterRoute.swift */; };
+		F3A178EBDC4B086F2C9D6F78 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 02667445E03FD602836F6EC7 /* Assets.xcassets */; };
 		FE8B2278B477F4D1F8F9D6E0 /* CCRConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AF5DD74358A8E4ECA12C2C3 /* CCRConfig.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02667445E03FD602836F6EC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		09F2A20A4D9E4D359F5B4C49 /* CCRMenuBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CCRMenuBar.entitlements; sourceTree = "<group>"; };
 		129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopup.swift; sourceTree = "<group>"; };
 		15C6D3E8C734768E6967C5CF /* ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerManager.swift; sourceTree = "<group>"; };
 		33D623336C1319268E142F3F /* CCRMenuBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRMenuBarApp.swift; sourceTree = "<group>"; };
 		3AF5DD74358A8E4ECA12C2C3 /* CCRConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRConfig.swift; sourceTree = "<group>"; };
+		465589090D8BE2D14181C76D /* TokenUsageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageService.swift; sourceTree = "<group>"; };
+		8E2629708DA2B111D5152B71 /* TokenUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageView.swift; sourceTree = "<group>"; };
 		992D6FE72487B94C51608B58 /* RouterRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterRoute.swift; sourceTree = "<group>"; };
 		AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
 		C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTab.swift; sourceTree = "<group>"; };
@@ -40,6 +46,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		14190191FF2E5991354BFCB2 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				02667445E03FD602836F6EC7 /* Assets.xcassets */,
+			);
+			name = Resources;
+			path = CCRMenuBar/Resources;
+			sourceTree = "<group>";
+		};
 		1848EB10F3C21F1C40D93E98 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -80,6 +95,7 @@
 				F815FBEF55C411A964A5C523 /* RouterSection.swift */,
 				FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */,
 				CD759C558320712E04C3207A /* SettingsView.swift */,
+				8E2629708DA2B111D5152B71 /* TokenUsageView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -89,6 +105,7 @@
 			children = (
 				F7AEA773FE41833421CA1D85 /* ConfigManager.swift */,
 				15C6D3E8C734768E6967C5CF /* ServerManager.swift */,
+				465589090D8BE2D14181C76D /* TokenUsageService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -97,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				51DFE8A4E9744AE7C1E4E5F5 /* CCRMenuBar */,
+				14190191FF2E5991354BFCB2 /* Resources */,
 				1848EB10F3C21F1C40D93E98 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -109,6 +127,7 @@
 			buildConfigurationList = 4E0F09335263C3E571AD88E0 /* Build configuration list for PBXNativeTarget "CCRMenuBar" */;
 			buildPhases = (
 				9419D9CBB78F33B52C1E4328 /* Sources */,
+				F896BE4C772A917A27D593A3 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -154,6 +173,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		F896BE4C772A917A27D593A3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3A178EBDC4B086F2C9D6F78 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		9419D9CBB78F33B52C1E4328 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -171,6 +201,8 @@
 				1FC1B233371366EF5675BD6B /* ServerManager.swift in Sources */,
 				35DCC7AD97AD07A82A643A6B /* ServerStatusView.swift in Sources */,
 				D7DD58B345D95DFCF3A53671 /* SettingsView.swift in Sources */,
+				AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */,
+				7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,7 +275,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CCRMenuBar/CCRMenuBar.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = CCRMenuBar/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -328,7 +360,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CCRMenuBar/CCRMenuBar.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = CCRMenuBar/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

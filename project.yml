@@ -23,8 +23,8 @@ targets:
       - path: CCRMenuBar
         excludes:
           - "Resources/**"
-    resources:
       - path: CCRMenuBar/Resources/Assets.xcassets
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ccr.menubar
@@ -35,5 +35,5 @@ targets:
         COMBINE_HIDPI_IMAGES: true
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/../Frameworks"
-        ENABLE_APP_SANDBOX: true
+        ENABLE_APP_SANDBOX: false
         ENABLE_HARDENED_RUNTIME: true

@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarPopup: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var serverManager: ServerManager
+    @ObservedObject var tokenUsageService: TokenUsageService
     let openSettings: () -> Void
 
     var body: some View {
@@ -11,6 +12,25 @@ struct MenuBarPopup: View {
             ServerStatusView(serverManager: serverManager)
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
+
+            // Token Usage
+            if tokenUsageService.allTimeStats.requestCount > 0 {
+                HStack(spacing: 6) {
+                    Text(tokenUsageService.todayStats.requestCount > 0 ? "TODAY'S USAGE" : "TOTAL USAGE")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .tracking(1)
+                    Rectangle()
+                        .fill(.quaternary)
+                        .frame(height: 0.5)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
+                TokenUsageView(usageService: tokenUsageService)
+                    .padding(.horizontal, 8)
+            }
 
             // Config error
             if let error = configManager.errorMessage {

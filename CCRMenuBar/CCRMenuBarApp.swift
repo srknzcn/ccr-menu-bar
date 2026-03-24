@@ -5,6 +5,7 @@ import AppKit
 struct CCRMenuBarApp: App {
     @ObservedObject private var configManager = ConfigManager.shared
     @StateObject private var serverManager = ServerManager()
+    @StateObject private var tokenUsageService = TokenUsageService()
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -12,7 +13,16 @@ struct CCRMenuBarApp: App {
             MenuBarPopup(
                 configManager: configManager,
                 serverManager: serverManager,
-                openSettings: { openWindow(id: "settings") }
+                tokenUsageService: tokenUsageService,
+                openSettings: {
+                    if let w = NSApp.windows.first(where: { $0.title == "CCR Settings" }) {
+                        w.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    } else {
+                        openWindow(id: "settings")
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                }
             )
             .onAppear { updateMenuBarIcon() }
             .onReceive(serverManager.$isRunning) { _ in updateMenuBarIcon() }

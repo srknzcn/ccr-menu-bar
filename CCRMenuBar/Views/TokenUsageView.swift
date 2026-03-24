@@ -1,0 +1,97 @@
+// CCRMenuBar/Views/TokenUsageView.swift
+import SwiftUI
+
+struct TokenUsageView: View {
+    @ObservedObject var usageService: TokenUsageService
+
+    private var displayStats: TokenStats {
+        usageService.todayStats.requestCount > 0 ? usageService.todayStats : usageService.allTimeStats
+    }
+
+    private var isShowingToday: Bool {
+        usageService.todayStats.requestCount > 0
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Summary pills
+            HStack(spacing: 0) {
+                TokenPill(label: "IN", value: displayStats.formattedInput, color: .blue)
+                Spacer()
+                TokenPill(label: "OUT", value: "~\(displayStats.formattedOutput)", color: .green)
+                Spacer()
+                TokenPill(label: "REQS", value: "\(displayStats.requestCount)", color: .orange)
+            }
+
+            // Per-model breakdown
+            if !usageService.modelBreakdown.isEmpty {
+                VStack(spacing: 3) {
+                    ForEach(usageService.modelBreakdown.prefix(4)) { usage in
+                        HStack(spacing: 6) {
+                            Text(shortModelName(usage.model))
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Text(usage.stats.formattedInput)
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.blue.opacity(0.8))
+
+                            Text("/")
+                                .foregroundStyle(.quaternary)
+                                .font(.system(size: 9))
+
+                            Text("~\(usage.stats.formattedOutput)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.green.opacity(0.8))
+
+                            Text("(\(usage.stats.requestCount))")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.ultraThinMaterial)
+        }
+    }
+
+    private func shortModelName(_ name: String) -> String {
+        var short = name
+            .replacingOccurrences(of: "claude-", with: "")
+            .replacingOccurrences(of: "-20251001", with: "")
+            .replacingOccurrences(of: "-20250514", with: "")
+        if short.count > 20 {
+            short = String(short.prefix(20))
+        }
+        return short
+    }
+}
+
+struct TokenPill: View {
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(color.opacity(0.7))
+
+            Text(value)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.08), in: Capsule())
+    }
+}
