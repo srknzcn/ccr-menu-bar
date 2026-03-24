@@ -2,6 +2,10 @@
 
 A native macOS menu bar application for managing [Claude Code Router (CCR)](https://github.com/musistudio/claude-code-router). Start, stop, and configure your CCR instance without touching the terminal.
 
+<p align="center">
+  <img src="assets/ccr-menu-bar.png" alt="CCR Menu Bar Screenshot" width="360">
+</p>
+
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-blue)
