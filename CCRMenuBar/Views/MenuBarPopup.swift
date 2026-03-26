@@ -28,8 +28,12 @@ struct MenuBarPopup: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
 
-                TokenUsageView(usageService: tokenUsageService, providers: configManager.config?.Providers ?? [])
+                TokenUsageView(usageService: tokenUsageService)
                     .padding(.horizontal, 8)
+                    .onAppear {
+                        tokenUsageService.providers = configManager.config?.Providers ?? []
+                        tokenUsageService.refresh()
+                    }
             }
 
             // Config error
@@ -83,6 +87,7 @@ struct MenuBarPopup: View {
 
                 Button {
                     configManager.loadConfig()
+                    tokenUsageService.providers = configManager.config?.Providers ?? []
                     tokenUsageService.refresh()
                     serverManager.checkStatus()
                 } label: {

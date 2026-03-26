@@ -14,11 +14,21 @@ struct ModelUsage: Identifiable {
     var id: String { model }
 }
 
+struct ProviderUsage: Identifiable {
+    let provider: String
+    var models: [ModelUsage]
+    var totalStats: TokenStats
+    var id: String { provider }
+}
+
 @MainActor
 class TokenUsageService: ObservableObject {
     @Published var todayStats = TokenStats()
     @Published var allTimeStats = TokenStats()
     @Published var modelBreakdown: [ModelUsage] = []
+    @Published var providerStats: [ProviderUsage] = []
+
+    var providers: [Provider] = []
 
     private var timer: Timer?
     private let logsPath: String
@@ -56,10 +66,22 @@ class TokenUsageService: ObservableObject {
 
         var allStats = TokenStats()
         var dayStats = TokenStats()
-        var byModel: [String: TokenStats] = [:]
 
-        // Track request-to-model mapping for attributing response data
-        var reqModelMap: [String: String] = [:]
+        // Track request metadata
+        struct ReqInfo {
+            let model: String
+            let isToday: Bool
+            var inputTokens: Int = 0
+            var outputTokens: Int = 0
+            var providerUrl: String?
+        }
+        var requests: [String: ReqInfo] = [:]
+
+        // Build provider mapping
+        var urlToProvider: [String: String] = [:]
+        for provider in providers {
+            urlToProvider[provider.api_base_url] = provider.name
+        }
 
         for file in logFiles {
             let isToday = file.contains(today)
@@ -73,50 +95,50 @@ class TokenUsageService: ObservableObject {
 
                 let reqId = entry["reqId"] as? String
 
-                // Parse request bodies for input token estimation
+                if let msg = entry["msg"] as? String, msg == "final request",
+                   let rid = reqId, let url = entry["requestUrl"] as? String {
+                    var info = requests[rid] ?? ReqInfo(model: "Unknown", isToday: isToday)
+                    info.providerUrl = url
+                    requests[rid] = info
+                }
+
                 if let body = entry["data"] as? [String: Any],
                    let model = body["model"] as? String {
                     let messages = body["messages"] as? [[String: Any]] ?? []
                     let system = body["system"] as? [[String: Any]] ?? []
+                    let input = max(estimateContentSize(messages) + estimateContentSize(system) / 3, 1)
 
-                    // Estimate tokens: ~3-4 chars per token average
-                    let msgSize = estimateContentSize(messages) + estimateContentSize(system)
-                    let estimatedInputTokens = max(msgSize / 3, 1)
-
-                    allStats.inputTokens += estimatedInputTokens
+                    allStats.inputTokens += input
                     allStats.requestCount += 1
-
-                    byModel[model, default: TokenStats()].inputTokens += estimatedInputTokens
-                    byModel[model, default: TokenStats()].requestCount += 1
-
                     if isToday {
-                        dayStats.inputTokens += estimatedInputTokens
+                        dayStats.inputTokens += input
                         dayStats.requestCount += 1
                     }
 
                     if let rid = reqId {
-                        reqModelMap[rid] = model
+                       var info = requests[rid] ?? ReqInfo(model: model, isToday: isToday)
+                       info.inputTokens = input
+                       // Eğer 'final request' daha önce geldiyse model adını güncelle
+                       if info.model == "Unknown" {
+                           // Yeniden oluştur çünkü struct immutable
+                           requests[rid] = ReqInfo(model: model, isToday: isToday, inputTokens: input, outputTokens: info.outputTokens, providerUrl: info.providerUrl)
+                       } else {
+                           requests[rid] = info
+                       }
                     }
                 }
 
-                // Parse response completion for output token estimation
                 if let msg = entry["msg"] as? String, msg == "request completed",
+                   let rid = reqId, var info = requests[rid],
                    let res = entry["res"] as? [String: Any],
                    let statusCode = res["statusCode"] as? Int, statusCode == 200,
                    let responseTime = entry["responseTime"] as? Double {
-                    // Heuristic: streaming response at ~40-60 tokens/sec
-                    let estimatedOutput = Int(responseTime / 1000.0 * 50)
-                    if estimatedOutput > 5 { // filter out quick non-streaming requests
-                        allStats.outputTokens += estimatedOutput
-
-                        if isToday {
-                            dayStats.outputTokens += estimatedOutput
-                        }
-
-                        // Attribute to model if we tracked the request
-                        if let rid = reqId, let model = reqModelMap[rid] {
-                            byModel[model, default: TokenStats()].outputTokens += estimatedOutput
-                        }
+                    let output = Int(responseTime / 1000.0 * 50)
+                    if output > 5 {
+                        allStats.outputTokens += output
+                        if info.isToday { dayStats.outputTokens += output }
+                        info.outputTokens = output
+                        requests[rid] = info
                     }
                 }
             }
@@ -124,8 +146,65 @@ class TokenUsageService: ObservableObject {
 
         allTimeStats = allStats
         todayStats = dayStats
-        modelBreakdown = byModel
-            .map { ModelUsage(model: $0.key, stats: $0.value) }
+
+        // Aggregate by Provider and Model
+        let showTodayOnly = dayStats.requestCount > 0
+        var providerData: [String: [String: TokenStats]] = [:] // provider -> (model -> stats)
+
+        // Helper to normalize URLs for better matching (localhost vs 127.0.0.1)
+        func normalizeUrl(_ url: String) -> String {
+            let low = url.lowercased()
+                .replacingOccurrences(of: "localhost", with: "127.0.0.1")
+                .replacingOccurrences(of: "http://", with: "")
+                .replacingOccurrences(of: "https://", with: "")
+
+            // Sadece host ve port kısmını al (path'leri temizle)
+            if let firstSlash = low.firstIndex(of: "/") {
+                return String(low[..<firstSlash])
+            }
+            return low
+        }
+
+        let normalizedProviders = providers.map { (normalizeUrl($0.api_base_url), $0.name) }
+
+        for (_, info) in requests {
+            // Eğer istek "Unknown" modelindeyse (örneğin sadece favicon isteği gibi), işleme almayalım
+            if info.model == "Unknown" { continue }
+            if showTodayOnly && !info.isToday { continue }
+
+            var pName = "Unknown"
+            if let url = info.providerUrl {
+                let normUrl = normalizeUrl(url)
+                if let matched = normalizedProviders.first(where: { normUrl.hasPrefix($0.0) || $0.0.hasPrefix(normUrl) }) {
+                    pName = matched.1
+                } else {
+                    pName = URL(string: url)?.host?.uppercased() ?? url.uppercased()
+                }
+            }
+
+            var modelsInProvider = providerData[pName, default: [:]]
+            var modelStats = modelsInProvider[info.model, default: TokenStats()]
+
+            modelStats.inputTokens += info.inputTokens
+            modelStats.outputTokens += info.outputTokens
+            modelStats.requestCount += 1
+
+            modelsInProvider[info.model] = modelStats
+            providerData[pName] = modelsInProvider
+        }
+
+        self.providerStats = providerData.map { pName, models in
+            let modelUsages = models.map { ModelUsage(model: $0.key, stats: $0.value) }
+                .sorted { $0.stats.requestCount > $1.stats.requestCount }
+            let total = modelUsages.reduce(into: TokenStats()) { res, m in
+                res.inputTokens += m.stats.inputTokens
+                res.outputTokens += m.stats.outputTokens
+                res.requestCount += m.stats.requestCount
+            }
+            return ProviderUsage(provider: pName, models: modelUsages, totalStats: total)
+        }.sorted { $0.totalStats.requestCount > $1.totalStats.requestCount }
+
+        self.modelBreakdown = self.providerStats.flatMap { $0.models }
             .sorted { $0.stats.requestCount > $1.stats.requestCount }
     }
 

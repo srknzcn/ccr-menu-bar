@@ -1,50 +1,11 @@
 // CCRMenuBar/Views/TokenUsageView.swift
 import SwiftUI
 
-struct ProviderUsage: Identifiable {
-    let provider: String
-    var models: [ModelUsage]
-    var totalStats: TokenStats
-    var id: String { provider }
-}
-
 struct TokenUsageView: View {
     @ObservedObject var usageService: TokenUsageService
-    var providers: [Provider] = []
 
     private var displayStats: TokenStats {
         usageService.todayStats.requestCount > 0 ? usageService.todayStats : usageService.allTimeStats
-    }
-
-    private var providerBreakdown: [ProviderUsage] {
-        // Build model → provider mapping from config
-        var modelToProvider: [String: String] = [:]
-        for provider in providers {
-            for model in provider.models {
-                modelToProvider[model] = provider.name
-            }
-        }
-
-        // Group model usage by provider
-        var byProvider: [String: [ModelUsage]] = [:]
-        for usage in usageService.modelBreakdown {
-            let providerName = modelToProvider[usage.model] ?? "Unknown"
-            byProvider[providerName, default: []].append(usage)
-        }
-
-        return byProvider.map { name, models in
-            let total = models.reduce(into: TokenStats()) { result, m in
-                result.inputTokens += m.stats.inputTokens
-                result.outputTokens += m.stats.outputTokens
-                result.requestCount += m.stats.requestCount
-            }
-            return ProviderUsage(
-                provider: name,
-                models: models.sorted { $0.stats.requestCount > $1.stats.requestCount },
-                totalStats: total
-            )
-        }
-        .sorted { $0.totalStats.requestCount > $1.totalStats.requestCount }
     }
 
     var body: some View {
@@ -58,10 +19,10 @@ struct TokenUsageView: View {
                 TokenPill(label: "REQS", value: "\(displayStats.requestCount)", color: .orange)
             }
 
-            // Per-provider/model breakdown
-            if !providerBreakdown.isEmpty {
+            // Per-provider breakdown
+            if !usageService.providerStats.isEmpty {
                 VStack(spacing: 6) {
-                    ForEach(providerBreakdown) { providerUsage in
+                    ForEach(usageService.providerStats) { providerUsage in
                         VStack(spacing: 2) {
                             // Provider header
                             HStack(spacing: 4) {
