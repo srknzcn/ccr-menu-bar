@@ -75,7 +75,10 @@ struct ProvidersTab: View {
                     SettingsRow(label: "Name") {
                         TextField("provider-name", text: Binding(
                             get: { configManager.config?.Providers[index].name ?? "" },
-                            set: { configManager.config?.Providers[index].name = $0 }
+                            set: {
+                                configManager.config?.Providers[index].name = $0
+                                selectedProvider = $0
+                            }
                         ))
                         .textFieldStyle(.roundedBorder)
                     }

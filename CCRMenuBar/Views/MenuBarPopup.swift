@@ -28,7 +28,7 @@ struct MenuBarPopup: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
 
-                TokenUsageView(usageService: tokenUsageService)
+                TokenUsageView(usageService: tokenUsageService, providers: configManager.config?.Providers ?? [])
                     .padding(.horizontal, 8)
             }
 
@@ -80,6 +80,18 @@ struct MenuBarPopup: View {
                 FooterButton(title: "Settings", icon: "gearshape") {
                     openSettings()
                 }
+
+                Button {
+                    configManager.loadConfig()
+                    tokenUsageService.refresh()
+                    serverManager.checkStatus()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
