@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03EFEC94395A0B8AA487042C /* PresetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53EB3C7EB4739B23F644A00 /* PresetManager.swift */; };
 		1A0950D240A78D757D8DEEF5 /* ConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AEA773FE41833421CA1D85 /* ConfigManager.swift */; };
 		1FC1B233371366EF5675BD6B /* ServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C6D3E8C734768E6967C5CF /* ServerManager.swift */; };
 		204AA49F1F4F9621482F0503 /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */; };
@@ -16,6 +17,7 @@
 		4D4897953630AF024050D493 /* GeneralTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */; };
 		5F85BE9A7FD1CE9E74287B7C /* RouterSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F815FBEF55C411A964A5C523 /* RouterSection.swift */; };
 		6954D0ABFA4EABB6C7EB67D9 /* CCRMenuBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D623336C1319268E142F3F /* CCRMenuBarApp.swift */; };
+		7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7194A10534B79903AD5AFAA /* PresetPicker.swift */; };
 		7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2629708DA2B111D5152B71 /* TokenUsageView.swift */; };
 		AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465589090D8BE2D14181C76D /* TokenUsageService.swift */; };
 		D7DD58B345D95DFCF3A53671 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD759C558320712E04C3207A /* SettingsView.swift */; };
@@ -35,7 +37,9 @@
 		8E2629708DA2B111D5152B71 /* TokenUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageView.swift; sourceTree = "<group>"; };
 		992D6FE72487B94C51608B58 /* RouterRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterRoute.swift; sourceTree = "<group>"; };
 		AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
+		C53EB3C7EB4739B23F644A00 /* PresetManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetManager.swift; sourceTree = "<group>"; };
 		C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTab.swift; sourceTree = "<group>"; };
+		C7194A10534B79903AD5AFAA /* PresetPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPicker.swift; sourceTree = "<group>"; };
 		CD759C558320712E04C3207A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CE8BC6FD22B1C00D86E7EDD5 /* CCRMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CCRMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersTab.swift; sourceTree = "<group>"; };
@@ -91,6 +95,7 @@
 			children = (
 				C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */,
 				129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */,
+				C7194A10534B79903AD5AFAA /* PresetPicker.swift */,
 				DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */,
 				F815FBEF55C411A964A5C523 /* RouterSection.swift */,
 				FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */,
@@ -104,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				F7AEA773FE41833421CA1D85 /* ConfigManager.swift */,
+				C53EB3C7EB4739B23F644A00 /* PresetManager.swift */,
 				15C6D3E8C734768E6967C5CF /* ServerManager.swift */,
 				465589090D8BE2D14181C76D /* TokenUsageService.swift */,
 			);
@@ -195,6 +201,8 @@
 				1A0950D240A78D757D8DEEF5 /* ConfigManager.swift in Sources */,
 				4D4897953630AF024050D493 /* GeneralTab.swift in Sources */,
 				40D8E76873FD6CC438C351B1 /* MenuBarPopup.swift in Sources */,
+				03EFEC94395A0B8AA487042C /* PresetManager.swift in Sources */,
+				7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */,
 				3DA5EBE3D52F2AF272CF6AC4 /* ProvidersTab.swift in Sources */,
 				E1E35482FFACED1C46494768 /* RouterRoute.swift in Sources */,
 				5F85BE9A7FD1CE9E74287B7C /* RouterSection.swift in Sources */,

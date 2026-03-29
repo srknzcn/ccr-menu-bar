@@ -4,7 +4,10 @@ struct MenuBarPopup: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var tokenUsageService: TokenUsageService
+    @ObservedObject var presetManager: PresetManager
     let openSettings: () -> Void
+    @State private var showNewPresetAlert = false
+    @State private var newPresetName = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -54,7 +57,7 @@ struct MenuBarPopup: View {
                 .padding(.top, 10)
             }
 
-            // Section divider
+            // Section divider with preset picker
             HStack(spacing: 6) {
                 Text("ROUTES")
                     .font(.system(size: 9, weight: .bold))
@@ -63,6 +66,22 @@ struct MenuBarPopup: View {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(height: 0.5)
+
+                PresetPicker(
+                    presetManager: presetManager,
+                    onSelect: { preset in
+                        guard var config = configManager.config else { return }
+                        config.Router = preset.router
+                        configManager.config = config
+                        configManager.hasUnsavedChanges = true
+                    },
+                    onSave: {
+                        showNewPresetAlert = true
+                    },
+                    onDelete: { name in
+                        presetManager.deletePreset(name: name)
+                    }
+                )
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -71,6 +90,11 @@ struct MenuBarPopup: View {
             // Router Section
             RouterSection(configManager: configManager)
                 .padding(.horizontal, 8)
+                .onChange(of: configManager.config?.Router.default) { _ in
+                    if let router = configManager.config?.Router {
+                        presetManager.matchCurrentConfig(router)
+                    }
+                }
 
             // Footer divider
             Rectangle()
@@ -116,6 +140,25 @@ struct MenuBarPopup: View {
             .padding(.vertical, 8)
         }
         .frame(width: 360)
+        .onAppear {
+            if let router = configManager.config?.Router {
+                presetManager.matchCurrentConfig(router)
+            }
+        }
+        .alert("Save Preset", isPresented: $showNewPresetAlert) {
+            TextField("Preset name", text: $newPresetName)
+            Button("Save") {
+                let name = newPresetName.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty, let router = configManager.config?.Router else { return }
+                presetManager.savePreset(name: name, router: router)
+                newPresetName = ""
+            }
+            Button("Cancel", role: .cancel) {
+                newPresetName = ""
+            }
+        } message: {
+            Text("Enter a name for this route configuration preset.")
+        }
     }
 }
 

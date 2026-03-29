@@ -6,6 +6,7 @@ struct CCRMenuBarApp: App {
     @ObservedObject private var configManager = ConfigManager.shared
     @StateObject private var serverManager = ServerManager()
     @StateObject private var tokenUsageService = TokenUsageService()
+    @StateObject private var presetManager = PresetManager.shared
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -14,6 +15,7 @@ struct CCRMenuBarApp: App {
                 configManager: configManager,
                 serverManager: serverManager,
                 tokenUsageService: tokenUsageService,
+                presetManager: presetManager,
                 openSettings: {
                     if let w = NSApp.windows.first(where: { $0.title == "CCR Settings" }) {
                         w.makeKeyAndOrderFront(nil)
