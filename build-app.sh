@@ -16,6 +16,7 @@ xcodebuild \
   -project CCRMenuBar.xcodeproj \
   -scheme CCRMenuBar \
   -configuration Release \
+  -derivedDataPath /tmp/ccr-deriveddata \
   clean build \
   CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
   -quiet
