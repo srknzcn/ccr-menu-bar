@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var configManager: ConfigManager
+    @ObservedObject var mcpInstaller: MCPInstaller
     @State private var selectedTab = 0
 
     var body: some View {
@@ -13,6 +14,9 @@ struct SettingsView: View {
                 }
                 TabButton(title: "General", icon: "gearshape", isSelected: selectedTab == 1) {
                     selectedTab = 1
+                }
+                TabButton(title: "Integrations", icon: "puzzlepiece.extension", isSelected: selectedTab == 2) {
+                    selectedTab = 2
                 }
             }
             .padding(.horizontal, 16)
@@ -26,6 +30,8 @@ struct SettingsView: View {
                 switch selectedTab {
                 case 0:
                     ProvidersTab(configManager: configManager)
+                case 2:
+                    IntegrationsTab(mcpInstaller: mcpInstaller)
                 default:
                     GeneralTab(configManager: configManager)
                 }
