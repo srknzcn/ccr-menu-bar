@@ -318,7 +318,7 @@ Multiple transformers can be stacked — they apply in order.
 
 ## 9. Configure Routes
 
-CCR routes different request types to different providers. All 6 routes are visible in the main popup and can be changed from dropdowns grouped by provider.
+CCR routes different request types to different providers. All 6 routes are visible in the main popup.
 
 | Route | When CCR uses it |
 |---|---|
@@ -332,6 +332,15 @@ CCR routes different request types to different providers. All 6 routes are visi
 Route format in `config.json`: `"providerName,modelName"`
 
 Example: `"anthropic,claude-opus-4-5"`
+
+### Changing a route
+
+Click any route row to open the **searchable model picker**:
+
+- Providers are listed alphabetically; models within each provider are also sorted alphabetically
+- Type in the search box to filter by provider name or model name
+- The currently selected model is scrolled into view and marked with a checkmark
+- Click a model to select it — the popover closes immediately
 
 ### Apply route changes
 
@@ -450,9 +459,15 @@ To route Claude Code's API calls through CCR Menu Bar:
 
 ### Step 1 — Set ANTHROPIC_BASE_URL
 
+#### Automatic (recommended)
+
+Open **Settings → Integrations → Shell Setup** and click **Add to ~/.zshrc** (or the equivalent for your shell). The app writes the per-session block shown below and detects your login shell automatically.
+
+#### Manual
+
 Add to `~/.zshrc` (or `~/.bash_profile`):
 
-#### Option A — Global routing (simplest)
+##### Option A — Global routing (simplest)
 
 Points Claude Code directly to CCR. No per-session isolation.
 
@@ -461,7 +476,7 @@ export ANTHROPIC_BASE_URL="http://localhost:3456"
 export ANTHROPIC_API_KEY="any-value"  # CCR handles the real key
 ```
 
-#### Option B — Per-session routing via proxy (recommended)
+##### Option B — Per-session routing via proxy (recommended)
 
 Each terminal window gets a unique session ID. Preset switches only affect the current window.
 
@@ -474,7 +489,7 @@ export ANTHROPIC_BASE_URL="http://localhost:3457/s/$CCR_SESSION"
 export ANTHROPIC_API_KEY="any-value"
 ```
 
-After adding these, reload your shell:
+After adding these manually, reload your shell:
 
 ```bash
 source ~/.zshrc
@@ -516,7 +531,15 @@ The `ccm:` hook lets you switch presets directly from the Claude Code CLI prompt
 
 ### Install the hook
 
-#### Step 1 — Create the hook script
+#### Automatic (recommended)
+
+Open **Settings → Integrations → ccm: Hook** and click **Install**. The app writes the hook script to `~/.claude/hooks/ccr-switch.sh` and registers it in `~/.claude/settings.json` automatically.
+
+The hook is also installed automatically on every app launch to keep it up to date.
+
+#### Manual
+
+##### Step 1 — Create the hook script
 
 ```bash
 mkdir -p ~/.claude/hooks
@@ -588,7 +611,7 @@ Make it executable:
 chmod +x ~/.claude/hooks/ccr-switch.sh
 ```
 
-#### Step 2 — Register the hook in Claude Code settings
+##### Step 2 — Register the hook in Claude Code settings
 
 Edit `~/.claude/settings.json` and add the `UserPromptSubmit` hook:
 
@@ -613,6 +636,8 @@ Edit `~/.claude/settings.json` and add the `UserPromptSubmit` hook:
 
 If `settings.json` already has other hooks, add this entry to the existing `UserPromptSubmit` array.
 
+---
+
 ### Usage
 
 Type these at the Claude Code prompt — they are intercepted by the hook and never sent to the model:
@@ -630,11 +655,7 @@ The hook uses `exit 2` to prevent the command from being sent as a prompt to Cla
 
 ## 14. MCP Server Integration
 
-The app automatically writes an MCP server script at:
-
-```
-~/.claude-code-router/ccr-mcp-server.js
-```
+The app writes an MCP server script at `~/.claude-code-router/ccr-mcp-server.js` on every launch to keep it up to date. You can also force a reinstall from **Settings → Integrations → MCP Server → Install**.
 
 This is a self-contained Node.js MCP server (zero npm dependencies) that exposes three tools to Claude Code:
 
@@ -712,6 +733,43 @@ Left sidebar shows all configured providers. Select one to edit:
 - **API Key** — Provider-specific key (overrides global)
 - **Models** — List of model IDs for this provider (add/remove with + and -)
 - **Transformers** — Middleware applied to requests/responses for this provider
+
+### Integrations tab
+
+Manages all Claude Code integration components with install/uninstall controls:
+
+#### ccm: Hook
+
+| Item | Description |
+|---|---|
+| Hook script | `~/.claude/hooks/ccr-switch.sh` — status dot shows if file exists |
+| Claude settings | Status dot shows if the hook is registered in `~/.claude/settings.json` |
+| **Install** | Writes the hook script, sets executable permissions, registers in settings.json |
+| **Reinstall** | Overwrites the hook script and re-registers (useful after app updates) |
+| **Uninstall** | Removes the script file and unregisters from settings.json |
+
+#### MCP Server
+
+| Item | Description |
+|---|---|
+| Server script | `~/.claude-code-router/ccr-mcp-server.js` — status dot shows if file exists |
+| **Install** | Writes the MCP server script |
+| **Reinstall** | Overwrites with the latest version |
+| **Uninstall** | Removes the script file |
+
+The JSON snippet shown in this card is what you need to add to `~/.claude/settings.json` to register the MCP server with Claude Code.
+
+#### Shell Setup
+
+| Item | Description |
+|---|---|
+| RC file | Auto-detected from `$SHELL` (`.zshrc`, `.bash_profile`, or `config.fish`) |
+| Status | Shows whether the CCR block is present in the RC file |
+| **Add to ~/.zshrc** | Appends the `CCR_SESSION` + `ANTHROPIC_BASE_URL` block |
+| **Update** | Replaces the existing block with the current version |
+| **Remove** | Cleanly removes the block from the RC file |
+
+The block written to the RC file is shown in the card for reference.
 
 ---
 
@@ -824,10 +882,10 @@ Names are lowercased, non-alphanumeric characters become hyphens, consecutive hy
 [ ] First launch: right-click → Open (Gatekeeper bypass)
 [ ] CCR server started via menu bar popup
 [ ] Providers configured in Settings → Providers
-[ ] Routes assigned in main popup
-[ ] ANTHROPIC_BASE_URL set in ~/.zshrc
-[ ] source ~/.zshrc
-[ ] (optional) ccm: hook installed and registered
-[ ] (optional) MCP server registered in ~/.claude/settings.json
+[ ] Routes assigned in main popup (click any row → searchable picker)
+[ ] Settings → Integrations → Shell Setup → Add to ~/.zshrc
+[ ] source ~/.zshrc  (or open a new terminal)
+[ ] Settings → Integrations → ccm: Hook → Install  (optional)
+[ ] Register MCP server in ~/.claude/settings.json  (optional, see §14)
 [ ] claude  ← test it works
 ```
