@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 struct RouterSection: View {
     @ObservedObject var configManager: ConfigManager
@@ -39,6 +38,8 @@ struct RouteRow: View {
     let models: [(provider: String, model: String)]
     let onSelect: (String, String) -> Void
     @State private var isHovered = false
+    @State private var showPicker = false
+    @State private var searchText = ""
 
     private var providerName: String {
         guard !currentValue.isEmpty else { return "" }
@@ -56,7 +57,8 @@ struct RouteRow: View {
 
     var body: some View {
         Button {
-            showMenu()
+            searchText = ""
+            showPicker = true
         } label: {
             HStack(spacing: 0) {
                 // LEFT: icon + route name
@@ -108,50 +110,151 @@ struct RouteRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-    }
-
-    private func showMenu() {
-        let menu = NSMenu()
-        let grouped = Dictionary(grouping: models, by: { $0.provider })
-        let sortedProviders = grouped.keys.sorted()
-
-        for (i, provider) in sortedProviders.enumerated() {
-            if i > 0 { menu.addItem(.separator()) }
-
-            let header = NSMenuItem(title: provider.uppercased(), action: nil, keyEquivalent: "")
-            header.isEnabled = false
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                .foregroundColor: NSColor.secondaryLabelColor
-            ]
-            header.attributedTitle = NSAttributedString(string: provider, attributes: attrs)
-            menu.addItem(header)
-
-            for item in (grouped[provider] ?? []) {
-                let value = "\(item.provider),\(item.model)"
-                let menuItem = NSMenuItem(title: item.model, action: #selector(RouteMenuTarget.menuItemClicked(_:)), keyEquivalent: "")
-                menuItem.target = RouteMenuTarget.shared
-                menuItem.representedObject = (item.provider, item.model, onSelect)
-                if currentValue == value {
-                    menuItem.state = .on
+        .popover(isPresented: $showPicker, arrowEdge: .trailing) {
+            ModelSearchPopover(
+                models: models,
+                currentValue: currentValue,
+                searchText: $searchText,
+                onSelect: { provider, model in
+                    onSelect(provider, model)
+                    showPicker = false
                 }
-                menu.addItem(menuItem)
-            }
-        }
-
-        if let event = NSApp.currentEvent {
-            NSMenu.popUpContextMenu(menu, with: event, for: NSApp.keyWindow?.contentView ?? NSView())
+            )
         }
     }
 }
 
-// NSMenu target for handling clicks
-class RouteMenuTarget: NSObject {
-    static let shared = RouteMenuTarget()
+// MARK: - Model Search Popover
 
-    @objc func menuItemClicked(_ sender: NSMenuItem) {
-        guard let info = sender.representedObject as? (String, String, (String, String) -> Void) else { return }
-        let (provider, model, callback) = info
-        callback(provider, model)
+private struct ModelSearchPopover: View {
+    let models: [(provider: String, model: String)]
+    let currentValue: String
+    @Binding var searchText: String
+    let onSelect: (String, String) -> Void
+
+    private var filteredGroups: [(provider: String, models: [(provider: String, model: String)])] {
+        let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
+        let filtered = query.isEmpty ? models : models.filter {
+            $0.provider.lowercased().contains(query) || $0.model.lowercased().contains(query)
+        }
+        let grouped = Dictionary(grouping: filtered, by: { $0.provider })
+        return grouped.keys.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .map { provider in
+                (provider: provider,
+                 models: (grouped[provider] ?? []).sorted {
+                    $0.model.localizedCaseInsensitiveCompare($1.model) == .orderedAscending
+                 })
+            }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search field
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                TextField("Search models...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(.quaternary.opacity(0.3))
+
+            Divider()
+
+            // Model list
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if filteredGroups.isEmpty {
+                            Text("No models found")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
+                        } else {
+                            ForEach(Array(filteredGroups.enumerated()), id: \.element.provider) { index, group in
+                                if index > 0 {
+                                    Divider().padding(.horizontal, 10).padding(.vertical, 4)
+                                }
+
+                                // Provider header
+                                Text(group.provider)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.top, index == 0 ? 6 : 2)
+                                    .padding(.bottom, 2)
+
+                                // Models
+                                ForEach(group.models.indices, id: \.self) { idx in
+                                    let item = group.models[idx]
+                                    let value = "\(item.provider),\(item.model)"
+                                    let isSelected = currentValue == value
+                                    RouteModelRow(name: item.model, isSelected: isSelected) {
+                                        onSelect(item.provider, item.model)
+                                    }
+                                    .id(value)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onAppear {
+                    if !currentValue.isEmpty {
+                        proxy.scrollTo(currentValue, anchor: .center)
+                    }
+                }
+            }
+            .frame(maxHeight: 320)
+        }
+        .frame(width: 280)
+    }
+}
+
+// MARK: - Model Row
+
+private struct RouteModelRow: View {
+    let name: String
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.blue)
+                    .opacity(isSelected ? 1 : 0)
+                    .frame(width: 14)
+
+                Text(name)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(isHovered ? Color.blue.opacity(0.1) : .clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
