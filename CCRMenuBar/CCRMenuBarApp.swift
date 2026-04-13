@@ -7,7 +7,25 @@ struct CCRMenuBarApp: App {
     @StateObject private var serverManager = ServerManager()
     @StateObject private var tokenUsageService = TokenUsageService()
     @StateObject private var presetManager = PresetManager.shared
+    @StateObject private var proxyService = ProxyService()
+    @StateObject private var mcpInstaller = MCPInstaller()
     @Environment(\.openWindow) private var openWindow
+
+    init() {
+        // Start proxy and install MCP files at app launch (not onAppear, which requires popup open)
+        let proxy = ProxyService()
+        let installer = MCPInstaller()
+        _proxyService = StateObject(wrappedValue: proxy)
+        _mcpInstaller = StateObject(wrappedValue: installer)
+
+        Task { @MainActor in
+            proxy.start()
+            installer.installAll()
+            if let providers = ConfigManager.shared.config?.Providers {
+                PresetManager.shared.syncToCCRPresets(providers: providers)
+            }
+        }
+    }
 
     var body: some Scene {
         MenuBarExtra("CCR", systemImage: "arrow.triangle.branch") {
@@ -16,6 +34,7 @@ struct CCRMenuBarApp: App {
                 serverManager: serverManager,
                 tokenUsageService: tokenUsageService,
                 presetManager: presetManager,
+                proxyService: proxyService,
                 openSettings: {
                     if let w = NSApp.windows.first(where: { $0.title == "CCR Settings" }) {
                         w.makeKeyAndOrderFront(nil)
@@ -32,7 +51,7 @@ struct CCRMenuBarApp: App {
         .menuBarExtraStyle(.window)
 
         Window("CCR Settings", id: "settings") {
-            SettingsView(configManager: configManager)
+            SettingsView(configManager: configManager, mcpInstaller: mcpInstaller)
         }
         .defaultSize(width: 760, height: 600)
     }

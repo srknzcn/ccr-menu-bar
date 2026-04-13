@@ -5,6 +5,7 @@ struct PresetPicker: View {
     @ObservedObject var presetManager: PresetManager
     let onSelect: (RouterPreset) -> Void
     let onSave: () -> Void
+    let onUpdate: (String) -> Void
     let onDelete: (String) -> Void
     @State private var isHovered = false
 
@@ -80,8 +81,14 @@ struct PresetPicker: View {
                     item.state = .on
                 }
 
-                // Add submenu for delete
+                // Add submenu for update/delete
                 let submenu = NSMenu()
+                let updateItem = NSMenuItem(title: "Update \(preset.name)", action: #selector(PresetMenuTarget.updateClicked(_:)), keyEquivalent: "")
+                updateItem.target = PresetMenuTarget.shared
+                updateItem.representedObject = (preset.name, onUpdate) as Any
+                updateItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
+                submenu.addItem(updateItem)
+                submenu.addItem(.separator())
                 let deleteItem = NSMenuItem(title: "Delete \(preset.name)", action: #selector(PresetMenuTarget.deleteClicked(_:)), keyEquivalent: "")
                 deleteItem.target = PresetMenuTarget.shared
                 deleteItem.representedObject = (preset.name, onDelete) as Any
@@ -116,6 +123,12 @@ class PresetMenuTarget: NSObject {
         guard let info = sender.representedObject as? (RouterPreset, (RouterPreset) -> Void) else { return }
         let (preset, callback) = info
         callback(preset)
+    }
+
+    @objc func updateClicked(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? (String, (String) -> Void) else { return }
+        let (name, callback) = info
+        callback(name)
     }
 
     @objc func deleteClicked(_ sender: NSMenuItem) {

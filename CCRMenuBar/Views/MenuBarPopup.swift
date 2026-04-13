@@ -5,6 +5,7 @@ struct MenuBarPopup: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var tokenUsageService: TokenUsageService
     @ObservedObject var presetManager: PresetManager
+    @ObservedObject var proxyService: ProxyService
     let openSettings: () -> Void
     @State private var showNewPresetAlert = false
     @State private var newPresetName = ""
@@ -15,6 +16,27 @@ struct MenuBarPopup: View {
             ServerStatusView(serverManager: serverManager)
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
+
+            // Proxy Status
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(proxyService.isRunning ? .green : .red)
+                    .frame(width: 6, height: 6)
+                Text("Proxy :\(proxyService.proxyPort)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                if let preset = proxyService.currentPreset {
+                    Text("|")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.quaternary)
+                    Text(PresetManager.shared.displayName(for: preset) ?? preset)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.blue)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
 
             // Token Usage
             if tokenUsageService.allTimeStats.requestCount > 0 {
@@ -74,9 +96,18 @@ struct MenuBarPopup: View {
                         config.Router = preset.router
                         configManager.config = config
                         configManager.hasUnsavedChanges = true
+                        proxyService.currentPreset = presetManager.fileSystemName(for: preset.name)
                     },
                     onSave: {
                         showNewPresetAlert = true
+                    },
+                    onUpdate: { name in
+                        guard let router = configManager.config?.Router else { return }
+                        presetManager.savePreset(name: name, router: router)
+                        if let providers = configManager.config?.Providers {
+                            presetManager.syncToCCRPresets(providers: providers)
+                        }
+                        serverManager.restart()
                     },
                     onDelete: { name in
                         presetManager.deletePreset(name: name)
@@ -128,6 +159,10 @@ struct MenuBarPopup: View {
                 SaveRestartButton(
                     isEnabled: configManager.hasUnsavedChanges,
                     action: {
+                        // Sync presets first so CCR picks them up on restart
+                        if let providers = configManager.config?.Providers {
+                            presetManager.syncToCCRPresets(providers: providers)
+                        }
                         configManager.saveAndRestart(serverManager: serverManager)
                     }
                 )
