@@ -14,12 +14,16 @@
 		35DCC7AD97AD07A82A643A6B /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */; };
 		3DA5EBE3D52F2AF272CF6AC4 /* ProvidersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */; };
 		40D8E76873FD6CC438C351B1 /* MenuBarPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */; };
+		4AEB78C181CB892923054735 /* IntegrationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E846D6BB06DCD1C3E153D7 /* IntegrationsTab.swift */; };
 		4D4897953630AF024050D493 /* GeneralTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */; };
+		5601F48007538EE9517E2185 /* MCPInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E11E0BE99D955A6A8FC2C0 /* MCPInstaller.swift */; };
 		5F85BE9A7FD1CE9E74287B7C /* RouterSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F815FBEF55C411A964A5C523 /* RouterSection.swift */; };
 		6954D0ABFA4EABB6C7EB67D9 /* CCRMenuBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D623336C1319268E142F3F /* CCRMenuBarApp.swift */; };
+		6BFC8B32233ABB55BC7C0A4E /* ProxyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA107701FDCD59BE83B6859 /* ProxyService.swift */; };
 		7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7194A10534B79903AD5AFAA /* PresetPicker.swift */; };
 		7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2629708DA2B111D5152B71 /* TokenUsageView.swift */; };
 		AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465589090D8BE2D14181C76D /* TokenUsageService.swift */; };
+		B2271DE6FE7D7FDC484F147C /* CCRPresetManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EB9F8567C6AFC81BB55877 /* CCRPresetManifest.swift */; };
 		D7DD58B345D95DFCF3A53671 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD759C558320712E04C3207A /* SettingsView.swift */; };
 		E1E35482FFACED1C46494768 /* RouterRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992D6FE72487B94C51608B58 /* RouterRoute.swift */; };
 		F3A178EBDC4B086F2C9D6F78 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 02667445E03FD602836F6EC7 /* Assets.xcassets */; };
@@ -34,9 +38,12 @@
 		33D623336C1319268E142F3F /* CCRMenuBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRMenuBarApp.swift; sourceTree = "<group>"; };
 		3AF5DD74358A8E4ECA12C2C3 /* CCRConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRConfig.swift; sourceTree = "<group>"; };
 		465589090D8BE2D14181C76D /* TokenUsageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageService.swift; sourceTree = "<group>"; };
+		62E846D6BB06DCD1C3E153D7 /* IntegrationsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsTab.swift; sourceTree = "<group>"; };
 		8E2629708DA2B111D5152B71 /* TokenUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageView.swift; sourceTree = "<group>"; };
 		992D6FE72487B94C51608B58 /* RouterRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterRoute.swift; sourceTree = "<group>"; };
+		A1E11E0BE99D955A6A8FC2C0 /* MCPInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPInstaller.swift; sourceTree = "<group>"; };
 		AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
+		AFA107701FDCD59BE83B6859 /* ProxyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyService.swift; sourceTree = "<group>"; };
 		C53EB3C7EB4739B23F644A00 /* PresetManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetManager.swift; sourceTree = "<group>"; };
 		C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTab.swift; sourceTree = "<group>"; };
 		C7194A10534B79903AD5AFAA /* PresetPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPicker.swift; sourceTree = "<group>"; };
@@ -44,6 +51,7 @@
 		CE8BC6FD22B1C00D86E7EDD5 /* CCRMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CCRMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersTab.swift; sourceTree = "<group>"; };
 		EB5DA469F25F5408412BFF29 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F0EB9F8567C6AFC81BB55877 /* CCRPresetManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRPresetManifest.swift; sourceTree = "<group>"; };
 		F7AEA773FE41833421CA1D85 /* ConfigManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigManager.swift; sourceTree = "<group>"; };
 		F815FBEF55C411A964A5C523 /* RouterSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterSection.swift; sourceTree = "<group>"; };
 		FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStatusView.swift; sourceTree = "<group>"; };
@@ -72,6 +80,7 @@
 			children = (
 				AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */,
 				3AF5DD74358A8E4ECA12C2C3 /* CCRConfig.swift */,
+				F0EB9F8567C6AFC81BB55877 /* CCRPresetManifest.swift */,
 				992D6FE72487B94C51608B58 /* RouterRoute.swift */,
 			);
 			path = Models;
@@ -94,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */,
+				62E846D6BB06DCD1C3E153D7 /* IntegrationsTab.swift */,
 				129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */,
 				C7194A10534B79903AD5AFAA /* PresetPicker.swift */,
 				DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */,
@@ -109,7 +119,9 @@
 			isa = PBXGroup;
 			children = (
 				F7AEA773FE41833421CA1D85 /* ConfigManager.swift */,
+				A1E11E0BE99D955A6A8FC2C0 /* MCPInstaller.swift */,
 				C53EB3C7EB4739B23F644A00 /* PresetManager.swift */,
+				AFA107701FDCD59BE83B6859 /* ProxyService.swift */,
 				15C6D3E8C734768E6967C5CF /* ServerManager.swift */,
 				465589090D8BE2D14181C76D /* TokenUsageService.swift */,
 			);
@@ -198,12 +210,16 @@
 				204AA49F1F4F9621482F0503 /* AnyCodable.swift in Sources */,
 				FE8B2278B477F4D1F8F9D6E0 /* CCRConfig.swift in Sources */,
 				6954D0ABFA4EABB6C7EB67D9 /* CCRMenuBarApp.swift in Sources */,
+				B2271DE6FE7D7FDC484F147C /* CCRPresetManifest.swift in Sources */,
 				1A0950D240A78D757D8DEEF5 /* ConfigManager.swift in Sources */,
 				4D4897953630AF024050D493 /* GeneralTab.swift in Sources */,
+				4AEB78C181CB892923054735 /* IntegrationsTab.swift in Sources */,
+				5601F48007538EE9517E2185 /* MCPInstaller.swift in Sources */,
 				40D8E76873FD6CC438C351B1 /* MenuBarPopup.swift in Sources */,
 				03EFEC94395A0B8AA487042C /* PresetManager.swift in Sources */,
 				7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */,
 				3DA5EBE3D52F2AF272CF6AC4 /* ProvidersTab.swift in Sources */,
+				6BFC8B32233ABB55BC7C0A4E /* ProxyService.swift in Sources */,
 				E1E35482FFACED1C46494768 /* RouterRoute.swift in Sources */,
 				5F85BE9A7FD1CE9E74287B7C /* RouterSection.swift in Sources */,
 				1FC1B233371366EF5675BD6B /* ServerManager.swift in Sources */,
