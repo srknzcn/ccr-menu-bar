@@ -30,5 +30,8 @@ Package.resolved
 # App bundles (build output)
 CCR Menu Bar.app/
 
+# Local Xcode derived data
+.deriveddata/
+
 # Superpowers docs (internal planning)
 docs/superpowers/
