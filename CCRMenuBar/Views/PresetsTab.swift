@@ -81,12 +81,19 @@ struct PresetsTab: View {
                 SettingsCard(title: "Preset", icon: "bookmark", color: .orange) {
                     SettingsRow(label: "Name") {
                         TextField("Preset name", text: Binding(
-                            get: { presetManager.presets[index].name },
+                            get: {
+                                guard let name = selectedPresetName,
+                                      let p = presetManager.presets.first(where: { $0.name == name })
+                                else { return "" }
+                                return p.name
+                            },
                             set: { newName in
-                                let oldName = presetManager.presets[index].name
-                                guard !newName.isEmpty, newName != oldName else { return }
-                                guard !presetManager.presets.contains(where: { $0.name == newName }) else { return }
-                                presetManager.presets[index].name = newName
+                                guard let oldName = selectedPresetName,
+                                      !newName.isEmpty, newName != oldName,
+                                      !presetManager.presets.contains(where: { $0.name == newName }),
+                                      let i = presetManager.presets.firstIndex(where: { $0.name == oldName })
+                                else { return }
+                                presetManager.presets[i].name = newName
                                 selectedPresetName = newName
                             }
                         ))
@@ -96,14 +103,25 @@ struct PresetsTab: View {
 
                 // Routes
                 SettingsCard(title: "Routes", icon: "arrow.triangle.swap", color: .blue) {
+                    let models = configManager.availableModels()
                     ForEach(RouterRoute.allCases) { route in
                         PresetRouteRow(
                             route: route,
                             routerConfig: Binding(
-                                get: { presetManager.presets[index].router },
-                                set: { presetManager.presets[index].router = $0 }
+                                get: {
+                                    guard let name = selectedPresetName,
+                                          let p = presetManager.presets.first(where: { $0.name == name })
+                                    else { return RouterConfig() }
+                                    return p.router
+                                },
+                                set: { newRouter in
+                                    guard let name = selectedPresetName,
+                                          let i = presetManager.presets.firstIndex(where: { $0.name == name })
+                                    else { return }
+                                    presetManager.presets[i].router = newRouter
+                                }
                             ),
-                            availableModels: configManager.availableModels()
+                            availableModels: models
                         )
                     }
                 }
@@ -201,6 +219,7 @@ struct PresetsTab: View {
     }
 
     private func exportPreset(at index: Int) {
+        guard index < presetManager.presets.count else { return }
         let preset = presetManager.presets[index]
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(preset.name).json"
@@ -209,8 +228,16 @@ struct PresetsTab: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(preset) else { return }
-        try? data.write(to: url, options: .atomic)
+        do {
+            let data = try encoder.encode(preset)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Export Failed"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
 
     private func importPreset() {
@@ -218,17 +245,25 @@ struct PresetsTab: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let data = try? Data(contentsOf: url),
-              let preset = try? JSONDecoder().decode(RouterPreset.self, from: data) else { return }
-        var name = preset.name
-        var counter = 2
-        while presetManager.presets.contains(where: { $0.name == name }) {
-            name = "\(preset.name) \(counter)"
-            counter += 1
+        do {
+            let data = try Data(contentsOf: url)
+            let preset = try JSONDecoder().decode(RouterPreset.self, from: data)
+            var name = preset.name
+            var counter = 2
+            while presetManager.presets.contains(where: { $0.name == name }) {
+                name = "\(preset.name) \(counter)"
+                counter += 1
+            }
+            presetManager.savePreset(name: name, router: preset.router)
+            selectedPresetName = name
+            syncPresets()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Import Failed"
+            alert.informativeText = "The file could not be read as a preset. \(error.localizedDescription)"
+            alert.alertStyle = .warning
+            alert.runModal()
         }
-        presetManager.savePreset(name: name, router: preset.router)
-        selectedPresetName = name
-        syncPresets()
     }
 }
 
@@ -268,7 +303,7 @@ private struct PresetListRow: View {
 
 // MARK: - Route Row with Picker
 
-struct PresetRouteRow: View {
+private struct PresetRouteRow: View {
     let route: RouterRoute
     @Binding var routerConfig: RouterConfig
     let availableModels: [(provider: String, model: String)]
@@ -352,7 +387,9 @@ struct PresetRouteRow: View {
             in: RoundedRectangle(cornerRadius: 8)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
         .popover(isPresented: $showPicker, arrowEdge: .trailing) {
             PresetModelSearchPopover(
                 models: availableModels,
