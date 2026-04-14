@@ -21,8 +21,8 @@
 		6954D0ABFA4EABB6C7EB67D9 /* CCRMenuBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D623336C1319268E142F3F /* CCRMenuBarApp.swift */; };
 		6BFC8B32233ABB55BC7C0A4E /* ProxyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA107701FDCD59BE83B6859 /* ProxyService.swift */; };
 		7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7194A10534B79903AD5AFAA /* PresetPicker.swift */; };
-		770D178C8BCA40F99E191330 /* PresetsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB57E3BA35047E180361BDA /* PresetsTab.swift */; };
 		7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2629708DA2B111D5152B71 /* TokenUsageView.swift */; };
+		939129B5206BE4575F8066AC /* PresetsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE4C18AF126201587A37FA /* PresetsTab.swift */; };
 		AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465589090D8BE2D14181C76D /* TokenUsageService.swift */; };
 		B2271DE6FE7D7FDC484F147C /* CCRPresetManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EB9F8567C6AFC81BB55877 /* CCRPresetManifest.swift */; };
 		D7DD58B345D95DFCF3A53671 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD759C558320712E04C3207A /* SettingsView.swift */; };
@@ -36,6 +36,7 @@
 		09F2A20A4D9E4D359F5B4C49 /* CCRMenuBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CCRMenuBar.entitlements; sourceTree = "<group>"; };
 		129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopup.swift; sourceTree = "<group>"; };
 		15C6D3E8C734768E6967C5CF /* ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerManager.swift; sourceTree = "<group>"; };
+		1BCE4C18AF126201587A37FA /* PresetsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetsTab.swift; sourceTree = "<group>"; };
 		33D623336C1319268E142F3F /* CCRMenuBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRMenuBarApp.swift; sourceTree = "<group>"; };
 		3AF5DD74358A8E4ECA12C2C3 /* CCRConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRConfig.swift; sourceTree = "<group>"; };
 		465589090D8BE2D14181C76D /* TokenUsageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageService.swift; sourceTree = "<group>"; };
@@ -48,7 +49,6 @@
 		C53EB3C7EB4739B23F644A00 /* PresetManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetManager.swift; sourceTree = "<group>"; };
 		C5798CAD69FFE167A9214BE3 /* GeneralTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTab.swift; sourceTree = "<group>"; };
 		C7194A10534B79903AD5AFAA /* PresetPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPicker.swift; sourceTree = "<group>"; };
-		CAB57E3BA35047E180361BDA /* PresetsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetsTab.swift; sourceTree = "<group>"; };
 		CD759C558320712E04C3207A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CE8BC6FD22B1C00D86E7EDD5 /* CCRMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CCRMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersTab.swift; sourceTree = "<group>"; };
@@ -108,7 +108,7 @@
 				62E846D6BB06DCD1C3E153D7 /* IntegrationsTab.swift */,
 				129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */,
 				C7194A10534B79903AD5AFAA /* PresetPicker.swift */,
-				CAB57E3BA35047E180361BDA /* PresetsTab.swift */,
+				1BCE4C18AF126201587A37FA /* PresetsTab.swift */,
 				DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */,
 				F815FBEF55C411A964A5C523 /* RouterSection.swift */,
 				FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */,
@@ -221,7 +221,7 @@
 				40D8E76873FD6CC438C351B1 /* MenuBarPopup.swift in Sources */,
 				03EFEC94395A0B8AA487042C /* PresetManager.swift in Sources */,
 				7313365501050EF79658BBF4 /* PresetPicker.swift in Sources */,
-				770D178C8BCA40F99E191330 /* PresetsTab.swift in Sources */,
+				939129B5206BE4575F8066AC /* PresetsTab.swift in Sources */,
 				3DA5EBE3D52F2AF272CF6AC4 /* ProvidersTab.swift in Sources */,
 				6BFC8B32233ABB55BC7C0A4E /* ProxyService.swift in Sources */,
 				E1E35482FFACED1C46494768 /* RouterRoute.swift in Sources */,

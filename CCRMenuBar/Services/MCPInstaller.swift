@@ -253,8 +253,8 @@ class MCPInstaller: ObservableObject {
 #"""
 #!/bin/bash
 # CCR Menu Bar preset switcher hook
-# ccm:          → show current preset (stderr)
-# ccm:list      → list all presets (stderr)
+# ccm:          → show current preset
+# ccm:list      → list all presets
 # ccm:<name>    → direct switch (case-insensitive)
 
 INPUT=$(cat)
@@ -264,10 +264,38 @@ PROMPT=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('promp
 
 ARG="${BASH_REMATCH[1]}"
 BASE="http://127.0.0.1:3457"
+MSG=""
+
+TITLE_FILE="/tmp/ccr-terminal-title"
+WATCHER_PID_FILE="/tmp/ccr-title-watcher.pid"
+
+set_terminal_title() {
+    local preset_name="$1"
+    local dir_name="$(basename "$PWD")"
+    echo "$preset_name - $dir_name" > "$TITLE_FILE"
+    printf '\033]0;%s - %s\007' "$preset_name" "$dir_name" > /dev/tty 2>/dev/null
+    _ensure_title_watcher
+}
+
+_ensure_title_watcher() {
+    if [ -f "$WATCHER_PID_FILE" ]; then
+        kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
+    fi
+    (
+        while [ -f "$TITLE_FILE" ]; do
+            title="$(cat "$TITLE_FILE" 2>/dev/null)"
+            [ -n "$title" ] && printf '\033]0;%s\007' "$title" > /dev/tty 2>/dev/null
+            sleep 1
+        done
+    ) &>/dev/null &
+    echo $! > "$WATCHER_PID_FILE"
+    disown
+}
 
 ccr_switch() {
     local preset="$1"
-    python3 - "$preset" "$CCR_SESSION" << 'PYEOF'
+    local result
+    result=$(python3 - "$preset" "$CCR_SESSION" << 'PYEOF'
 import json, sys, urllib.request
 preset  = sys.argv[1]
 session = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -276,36 +304,44 @@ req     = urllib.request.Request("http://127.0.0.1:3457/_api/switch",
             data=body, headers={"Content-Type":"application/json"}, method="POST")
 try:
     d = json.loads(urllib.request.urlopen(req, timeout=3).read())
-    print("Switched to:", d.get("preset","?") if d.get("ok") else f"Error: {d.get('error')}")
+    print(d.get("preset","?") if d.get("ok") else f"Error: {d.get('error')}")
 except Exception as e:
-    print("Error:", e)
+    print(f"Error: {e}")
 PYEOF
+    )
+    if [[ "$result" != Error:* ]]; then
+        set_terminal_title "$result"
+    fi
+    MSG="Switched to: $result"
 }
 
 if [ -z "$ARG" ]; then
-    # ccm: → show current preset
     CURRENT=$(curl -s "$BASE/_api/current" -H "X-CCR-Session: $CCR_SESSION" 2>/dev/null)
     PRESET=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('preset') or 'default')" <<< "$CURRENT" 2>/dev/null)
-    echo "Current preset: $PRESET" >&2
+    set_terminal_title "$PRESET"
+    MSG="Current preset: $PRESET"
 
 elif [ "$ARG" = "list" ]; then
-    # ccm:list → list all presets
     PRESETS_JSON=$(curl -s "$BASE/_api/presets" 2>/dev/null)
-    python3 -c "
+    MSG=$(python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 cur=d.get('current')
+lines=[]
 for p in d.get('presets',[]):
     mark = ' ←' if p['id']==cur else ''
-    print(f\"  {p['name']}{mark}\")
-" <<< "$PRESETS_JSON" >&2
+    lines.append(f\"  {p['name']}{mark}\")
+print('\\n'.join(lines))
+" <<< "$PRESETS_JSON" 2>/dev/null)
 
 else
-    # ccm:<name> → direct switch
-    ccr_switch "$ARG" >&2
+    ccr_switch "$ARG"
 fi
 
-exit 2
+# Block the prompt — pass MSG as reason so user sees the result
+MSG_JSON=$(printf '%s' "$MSG" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))")
+printf '{"decision":"block","reason":%s}\n' "$MSG_JSON"
+exit 0
 """#
     }
 

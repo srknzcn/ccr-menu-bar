@@ -4,6 +4,8 @@ struct PresetsTab: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var presetManager = PresetManager.shared
     @State private var selectedPresetName: String?
+    @State private var editablePreset: RouterPreset?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         HSplitView {
@@ -13,7 +15,7 @@ struct PresetsTab: View {
                     ForEach(presetManager.presets) { preset in
                         PresetListRow(
                             preset: preset,
-                            isActive: presetManager.selectedPresetName == preset.name
+                            isActive: selectedPresetName == preset.name
                         )
                         .tag(preset.name)
                     }
@@ -23,18 +25,22 @@ struct PresetsTab: View {
                 Divider()
 
                 // Toolbar
-                HStack(spacing: 12) {
+                HStack(spacing: 4) {
                     Button { addPreset() } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
 
-                    Button { deleteSelected() } label: {
+                    Button { requestDeleteSelected() } label: {
                         Image(systemName: "minus")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(selectedPresetName == nil ? .quaternary : .secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(selectedPresetName == nil)
@@ -43,20 +49,21 @@ struct PresetsTab: View {
                         Image(systemName: "square.and.arrow.down")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
 
                     Spacer()
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
             }
             .frame(minWidth: 180, maxWidth: 220)
 
             // Detail panel
-            if let name = selectedPresetName,
-               let index = presetManager.presets.firstIndex(where: { $0.name == name }) {
-                presetDetail(index: index)
+            if let editablePreset {
+                presetDetail(editablePreset: editablePreset)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "bookmark")
@@ -69,33 +76,32 @@ struct PresetsTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .onAppear(perform: loadSelectedPreset)
+        .onChange(of: selectedPresetName) { _, _ in
+            loadSelectedPreset()
+        }
+        .confirmationDialog("Delete preset?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                confirmDeleteSelected()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone.")
+        }
     }
 
     // MARK: - Detail Panel
 
     @ViewBuilder
-    private func presetDetail(index: Int) -> some View {
+    private func presetDetail(editablePreset: RouterPreset) -> some View {
         ScrollView {
             VStack(spacing: 20) {
                 // Name field
                 SettingsCard(title: "Preset", icon: "bookmark", color: .orange) {
                     SettingsRow(label: "Name") {
                         TextField("Preset name", text: Binding(
-                            get: {
-                                guard let name = selectedPresetName,
-                                      let p = presetManager.presets.first(where: { $0.name == name })
-                                else { return "" }
-                                return p.name
-                            },
-                            set: { newName in
-                                guard let oldName = selectedPresetName,
-                                      !newName.isEmpty, newName != oldName,
-                                      !presetManager.presets.contains(where: { $0.name == newName }),
-                                      let i = presetManager.presets.firstIndex(where: { $0.name == oldName })
-                                else { return }
-                                presetManager.presets[i].name = newName
-                                selectedPresetName = newName
-                            }
+                            get: { self.editablePreset?.name ?? "" },
+                            set: { self.editablePreset?.name = $0 }
                         ))
                         .textFieldStyle(.roundedBorder)
                     }
@@ -108,18 +114,8 @@ struct PresetsTab: View {
                         PresetRouteRow(
                             route: route,
                             routerConfig: Binding(
-                                get: {
-                                    guard let name = selectedPresetName,
-                                          let p = presetManager.presets.first(where: { $0.name == name })
-                                    else { return RouterConfig() }
-                                    return p.router
-                                },
-                                set: { newRouter in
-                                    guard let name = selectedPresetName,
-                                          let i = presetManager.presets.firstIndex(where: { $0.name == name })
-                                    else { return }
-                                    presetManager.presets[i].router = newRouter
-                                }
+                                get: { self.editablePreset?.router ?? RouterConfig() },
+                                set: { self.editablePreset?.router = $0 }
                             ),
                             availableModels: models
                         )
@@ -130,7 +126,7 @@ struct PresetsTab: View {
                 HStack(spacing: 12) {
                     Spacer()
 
-                    Button { exportPreset(at: index) } label: {
+                    Button { exportPreset(named: editablePreset.name) } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 11))
@@ -144,7 +140,7 @@ struct PresetsTab: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button { duplicatePreset(at: index) } label: {
+                    Button { duplicatePreset() } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "doc.on.doc")
                                 .font(.system(size: 11))
@@ -158,7 +154,7 @@ struct PresetsTab: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button { savePreset(at: index) } label: {
+                    Button { savePreset() } label: {
                         Text("Save")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
@@ -184,23 +180,47 @@ struct PresetsTab: View {
         }
         presetManager.savePreset(name: name, router: RouterConfig())
         selectedPresetName = name
+        syncPresets()
+        loadSelectedPreset()
     }
 
-    private func deleteSelected() {
+    private func requestDeleteSelected() {
+        guard selectedPresetName != nil else { return }
+        showDeleteConfirmation = true
+    }
+
+    private func confirmDeleteSelected() {
         guard let name = selectedPresetName else { return }
         presetManager.deletePreset(name: name)
         selectedPresetName = nil
+        editablePreset = nil
         syncPresets()
     }
 
-    private func savePreset(at index: Int) {
-        let preset = presetManager.presets[index]
-        presetManager.savePreset(name: preset.name, router: preset.router)
+    private func savePreset() {
+        guard let editablePreset else { return }
+
+        let trimmedName = editablePreset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
+        let originalName = selectedPresetName
+        let hasDuplicate = presetManager.presets.contains {
+            $0.name == trimmedName && $0.name != originalName
+        }
+        guard !hasDuplicate else { return }
+
+        if let originalName, originalName != trimmedName {
+            presetManager.deletePreset(name: originalName)
+        }
+
+        presetManager.savePreset(name: trimmedName, router: editablePreset.router)
+        selectedPresetName = trimmedName
         syncPresets()
+        loadSelectedPreset()
     }
 
-    private func duplicatePreset(at index: Int) {
-        let source = presetManager.presets[index]
+    private func duplicatePreset() {
+        guard let source = editablePreset else { return }
         var name = "\(source.name) Copy"
         var counter = 2
         while presetManager.presets.contains(where: { $0.name == name }) {
@@ -210,6 +230,7 @@ struct PresetsTab: View {
         presetManager.savePreset(name: name, router: source.router)
         selectedPresetName = name
         syncPresets()
+        loadSelectedPreset()
     }
 
     private func syncPresets() {
@@ -218,9 +239,17 @@ struct PresetsTab: View {
         }
     }
 
-    private func exportPreset(at index: Int) {
-        guard index < presetManager.presets.count else { return }
-        let preset = presetManager.presets[index]
+    private func loadSelectedPreset() {
+        guard let name = selectedPresetName,
+              let preset = presetManager.presets.first(where: { $0.name == name }) else {
+            editablePreset = nil
+            return
+        }
+        editablePreset = preset
+    }
+
+    private func exportPreset(named presetName: String) {
+        guard let preset = presetManager.presets.first(where: { $0.name == presetName }) else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(preset.name).json"
         panel.allowedContentTypes = [.json]
@@ -257,6 +286,7 @@ struct PresetsTab: View {
             presetManager.savePreset(name: name, router: preset.router)
             selectedPresetName = name
             syncPresets()
+            loadSelectedPreset()
         } catch {
             let alert = NSAlert()
             alert.messageText = "Import Failed"
@@ -265,6 +295,7 @@ struct PresetsTab: View {
             alert.runModal()
         }
     }
+
 }
 
 // MARK: - Sidebar Row
