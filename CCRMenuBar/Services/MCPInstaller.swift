@@ -262,44 +262,32 @@ PROMPT=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('promp
 
 [[ "$PROMPT" =~ ^ccm:(.*)$ ]] || exit 0
 
-ARG="${BASH_REMATCH[1]}"
+ARG=$(printf '%s' "${BASH_REMATCH[1]}" | python3 -c "import re,sys; s=sys.stdin.read(); s=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', s); s=re.sub(r'\[[0-?]*[ -/]*m\]?$', '', s); print(s.strip())")
 BASE="http://127.0.0.1:3457"
 MSG=""
+DEBUG_LOG="$HOME/.claude-code-router/ccm-debug.log"
 
-TITLE_FILE="/tmp/ccr-terminal-title"
-WATCHER_PID_FILE="/tmp/ccr-title-watcher.pid"
-
-set_terminal_title() {
-    local preset_name="$1"
-    local dir_name="$(basename "$PWD")"
-    echo "$preset_name - $dir_name" > "$TITLE_FILE"
-    printf '\033]0;%s - %s\007' "$preset_name" "$dir_name" > /dev/tty 2>/dev/null
-    _ensure_title_watcher
+ccm_debug() {
+    mkdir -p "$HOME/.claude-code-router" 2>/dev/null
+    printf '[%s] hook %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$DEBUG_LOG" 2>/dev/null
 }
 
-_ensure_title_watcher() {
-    if [ -f "$WATCHER_PID_FILE" ]; then
-        kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
-    fi
-    (
-        while [ -f "$TITLE_FILE" ]; do
-            title="$(cat "$TITLE_FILE" 2>/dev/null)"
-            [ -n "$title" ] && printf '\033]0;%s\007' "$title" > /dev/tty 2>/dev/null
-            sleep 1
-        done
-    ) &>/dev/null &
-    echo $! > "$WATCHER_PID_FILE"
-    disown
-}
+ccm_debug "prompt=$PROMPT arg=$ARG CCR_SESSION=${CCR_SESSION:-nil} ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-nil}"
 
 ccr_switch() {
     local preset="$1"
     local result
-    result=$(python3 - "$preset" "$CCR_SESSION" << 'PYEOF'
-import json, sys, urllib.request
+result=$(python3 - "$preset" "$CCR_SESSION" << 'PYEOF'
+import json, os, re, sys, urllib.request
 preset  = sys.argv[1]
 session = sys.argv[2] if len(sys.argv) > 2 else ""
-body    = json.dumps({"preset": preset, "session": session}).encode()
+if not session:
+    match = re.search(r"/s/([^/]+)", os.environ.get("ANTHROPIC_BASE_URL", ""))
+    session = match.group(1) if match else ""
+payload = {"preset": preset}
+if session:
+    payload["session"] = session
+body    = json.dumps(payload).encode()
 req     = urllib.request.Request("http://127.0.0.1:3457/_api/switch",
             data=body, headers={"Content-Type":"application/json"}, method="POST")
 try:
@@ -309,16 +297,13 @@ except Exception as e:
     print(f"Error: {e}")
 PYEOF
     )
-    if [[ "$result" != Error:* ]]; then
-        set_terminal_title "$result"
-    fi
+    ccm_debug "switch_result=$result"
     MSG="Switched to: $result"
 }
 
 if [ -z "$ARG" ]; then
     CURRENT=$(curl -s "$BASE/_api/current" -H "X-CCR-Session: $CCR_SESSION" 2>/dev/null)
     PRESET=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('preset') or 'default')" <<< "$CURRENT" 2>/dev/null)
-    set_terminal_title "$PRESET"
     MSG="Current preset: $PRESET"
 
 elif [ "$ARG" = "list" ]; then
@@ -330,7 +315,7 @@ cur=d.get('current')
 lines=[]
 for p in d.get('presets',[]):
     mark = ' ←' if p['id']==cur else ''
-    lines.append(f\"  {p['name']}{mark}\")
+    lines.append(f\"  {p['name']} [{p['id']}]{mark}\")
 print('\\n'.join(lines))
 " <<< "$PRESETS_JSON" 2>/dev/null)
 
@@ -339,7 +324,7 @@ else
 fi
 
 # Block the prompt — pass MSG as reason so user sees the result
-MSG_JSON=$(printf '%s' "$MSG" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))")
+MSG_JSON=$(printf '%s' "$MSG" | python3 -c "import json,re,sys; s=sys.stdin.read(); s=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', s); s=re.sub(r'\[[0-?]*[ -/]*m\]?$', '', s); print(json.dumps(s.strip()))")
 printf '{"decision":"block","reason":%s}\n' "$MSG_JSON"
 exit 0
 """#

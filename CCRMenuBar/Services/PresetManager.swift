@@ -161,7 +161,8 @@ class PresetManager: ObservableObject {
 
             let manifest = CCRPresetManifest.from(
                 name: safeName,
-                providers: providers,
+                displayName: preset.name,
+                providers: providersForCCRManifest(providers),
                 router: preset.router
             )
             if let data = try? encoder.encode(manifest) {
@@ -186,5 +187,15 @@ class PresetManager: ObservableObject {
 
     func displayName(for fileSystemName: String) -> String? {
         presetNameMap.first(where: { $0.value == fileSystemName })?.key
+    }
+
+    private func providersForCCRManifest(_ providers: [Provider]) -> [Provider] {
+        providers.map { provider in
+            var normalized = provider
+            if provider.name.lowercased() == "openai" {
+                normalized.transformer = TransformerConfig(use: ["Anthropic"])
+            }
+            return normalized
+        }
     }
 }
