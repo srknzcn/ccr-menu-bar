@@ -22,6 +22,18 @@ final class ProxyServiceTests: XCTestCase {
         XCTAssertNotNil(object["messages"])
     }
 
+    func testSanitizedJSONBodyForCCRForcesSelectedRouteModel() throws {
+        let input = #"{"model":"claude-opus-4-7","messages":[{"role":"user","content":"hi"}]}"#
+        let output = ProxyService.sanitizedJSONBodyForCCR(
+            Data(input.utf8),
+            forceModel: "x-ai/grok-4.20-multi-agent"
+        )
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(output)) as? [String: Any])
+        XCTAssertEqual(object["model"] as? String, "x-ai/grok-4.20-multi-agent")
+        XCTAssertNotNil(object["messages"])
+    }
+
     func testSanitizedJSONBodyForCCRUsesAdaptiveThinkingForOpus47() throws {
         let input = #"{"model":"claude-sonnet-4-6","thinking":{"type":"enabled","budget_tokens":12000},"anthropic_beta":["interleaved-thinking-2025-05-14","claude-code-20250219"],"messages":[{"role":"user","content":"hi"}]}"#
         let output = ProxyService.sanitizedJSONBodyForCCR(Data(input.utf8), useAdaptiveThinking: true)
@@ -38,6 +50,18 @@ final class ProxyServiceTests: XCTestCase {
         XCTAssertEqual(betas, ["claude-code-20250219"])
     }
 
+    func testSanitizedJSONBodyForCCRCanDisableThinking() throws {
+        let input = #"{"model":"claude-sonnet-4-6","thinking":{"type":"enabled","budget_tokens":12000},"output_config":{"effort":"high"},"anthropic_beta":["interleaved-thinking-2025-05-14","claude-code-20250219"],"messages":[{"role":"user","content":"hi"}]}"#
+        let output = ProxyService.sanitizedJSONBodyForCCR(Data(input.utf8), disableThinking: true)
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(output)) as? [String: Any])
+        XCTAssertNil(object["thinking"])
+        XCTAssertNil(object["output_config"])
+        XCTAssertEqual(object["anthropic_beta"] as? [String], ["claude-code-20250219"])
+        XCTAssertEqual(object["model"] as? String, "claude-sonnet-4-6")
+        XCTAssertNotNil(object["messages"])
+    }
+
     func testRemovingInterleavedThinkingBetaKeepsOtherBetas() {
         XCTAssertEqual(
             ProxyService.removingInterleavedThinkingBeta(from: "claude-code-20250219, interleaved-thinking-2025-05-14"),
@@ -50,7 +74,7 @@ final class ProxyServiceTests: XCTestCase {
         let output = ProxyService.sanitizedJSONBodyForCCR(
             Data(input.utf8),
             sanitizeForOpenAIProvider: true,
-            forceModel: "OpenAI,gpt-5.5"
+            forceModel: "gpt-5.5"
         )
 
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(output)) as? [String: Any])
@@ -60,7 +84,7 @@ final class ProxyServiceTests: XCTestCase {
         XCTAssertNil(object["anthropic_beta"])
         XCTAssertNil(object["metadata"])
         XCTAssertNil(object["system"])
-        XCTAssertEqual(object["model"] as? String, "OpenAI,gpt-5.5")
+        XCTAssertEqual(object["model"] as? String, "gpt-5.5")
         XCTAssertNil(object["max_tokens"])
         XCTAssertEqual(object["max_completion_tokens"] as? Int, 1024)
         XCTAssertEqual(object["stream"] as? Bool, false)

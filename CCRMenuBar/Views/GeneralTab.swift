@@ -3,8 +3,10 @@ import ServiceManagement
 
 struct GeneralTab: View {
     @ObservedObject var configManager: ConfigManager
+    @ObservedObject var tokenUsageService: TokenUsageService
     @State private var showAPIKey = false
     @State private var showSaved = false
+    @State private var showPricingRefreshed = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
@@ -63,6 +65,54 @@ struct GeneralTab: View {
                         SettingsRow(label: "Claude Binary") {
                             TextField("/usr/local/bin/claude", text: binding(\.CLAUDE_PATH, default: ""))
                                 .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    SettingsCard(title: "Pricing Cache", icon: "dollarsign.circle", color: .yellow) {
+                        SettingsRow(label: "Last Updated") {
+                            Text(pricingUpdatedText)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        SettingsRow(label: "Cache") {
+                            HStack(spacing: 8) {
+                                Button {
+                                    tokenUsageService.refreshPricingCache()
+                                    withAnimation { showPricingRefreshed = true }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        withAnimation { showPricingRefreshed = false }
+                                    }
+                                } label: {
+                                    Label(
+                                        tokenUsageService.isPricingRefreshing ? "Refreshing..." : "Refresh Pricing Cache",
+                                        systemImage: "arrow.clockwise"
+                                    )
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 7))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(tokenUsageService.isPricingRefreshing)
+
+                                if showPricingRefreshed && tokenUsageService.pricingError == nil {
+                                    Label("Refresh started", systemImage: "checkmark.circle.fill")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.green)
+                                        .transition(.opacity.combined(with: .scale))
+                                }
+                            }
+                        }
+
+                        if let pricingError = tokenUsageService.pricingError {
+                            SettingsRow(label: "Status") {
+                                Text(pricingError)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.red)
+                                    .lineLimit(2)
+                            }
                         }
                     }
 
@@ -170,6 +220,17 @@ struct GeneralTab: View {
             get: { configManager.config?[keyPath: keyPath] ?? defaultValue },
             set: { configManager.config?[keyPath: keyPath] = $0.isEmpty ? nil : $0 }
         )
+    }
+
+    private var pricingUpdatedText: String {
+        guard let date = tokenUsageService.pricingUpdatedAt else {
+            return "Not loaded"
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

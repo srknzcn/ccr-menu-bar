@@ -23,6 +23,8 @@ struct Provider: Codable, Identifiable, Hashable {
     var api_key: String
     var models: [String]
     var transformer: TransformerConfig?
+    var daily_spend_limit_usd: Double?
+    var thinking_disabled_models: [String]?
     var id: String { name }
 
     static func == (lhs: Provider, rhs: Provider) -> Bool {

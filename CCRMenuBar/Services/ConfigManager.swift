@@ -71,16 +71,37 @@ class ConfigManager: ObservableObject {
         }
     }
 
-    func availableModels() -> [(provider: String, model: String)] {
+    func availableModels() -> [(provider: String, model: String, thinkingDisabled: Bool)] {
         guard let config = config else { return [] }
         return config.Providers.flatMap { provider in
-            provider.models.map { (provider: provider.name, model: $0) }
+            provider.models.map {
+                (
+                    provider: provider.name,
+                    model: $0,
+                    thinkingDisabled: provider.thinking_disabled_models?.contains($0) == true
+                )
+            }
         }
     }
 
     func setRoute(_ route: RouterRoute, provider: String, model: String) {
         guard config != nil else { return }
         route.setValue("\(provider),\(model)", on: &config!.Router)
+        hasUnsavedChanges = true
+    }
+
+    func setThinkingDisabled(provider providerName: String, model: String, disabled: Bool) {
+        guard config != nil,
+              let index = config!.Providers.firstIndex(where: { $0.name == providerName }) else {
+            return
+        }
+
+        var disabledModels = config!.Providers[index].thinking_disabled_models ?? []
+        disabledModels.removeAll { $0 == model }
+        if disabled {
+            disabledModels.append(model)
+        }
+        config!.Providers[index].thinking_disabled_models = disabledModels.isEmpty ? nil : disabledModels
         hasUnsavedChanges = true
     }
 

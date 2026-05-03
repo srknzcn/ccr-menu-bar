@@ -22,6 +22,22 @@ struct ProxyHTTPRequest {
     }
 }
 
+struct ProxyUsageLogContext: Sendable {
+    let requestId: String
+    let startedAt: Date
+    let method: String
+    let path: String
+    let targetPath: String
+    let session: String?
+    let presetId: String?
+    let presetName: String
+    let route: String
+    let provider: String?
+    let model: String?
+    let requestModel: String?
+    let inputTokens: Int
+}
+
 // MARK: - ProxyService
 
 @MainActor
@@ -45,6 +61,7 @@ class ProxyService: ObservableObject {
     }
 
     func start() {
+        UsageLogStore.bootstrap()
         let port = proxyPort
         internalQueue.async { [weak self] in
             guard let self else { return }
@@ -215,7 +232,7 @@ class ProxyService: ObservableObject {
             responseData = handleGetCurrent(request)
 
         case ("GET", "/_api/presets"):
-            responseData = handleGetPresets()
+            responseData = handleGetPresets(request)
 
         case ("POST", "/_api/switch"):
             responseData = handleSwitch(request)
@@ -255,23 +272,29 @@ class ProxyService: ObservableObject {
             let displayName = DispatchQueue.main.sync {
                 PresetManager.shared.displayName(for: preset) ?? preset
             }
-            return buildJSONResponse(status: 200, json: #"{"preset":"\#(escapeJSON(displayName))","presetId":"\#(escapeJSON(preset))"}"#)
+            return buildJSONResponse(status: 200, json: #"{"preset":"\#(Self.escapeJSON(displayName))","presetId":"\#(Self.escapeJSON(preset))"}"#)
         } else {
             return buildJSONResponse(status: 200, json: #"{"preset":null,"presetId":null}"#)
         }
     }
 
-    private nonisolated func handleGetPresets() -> Data {
+    private nonisolated func handleGetPresets(_ request: ProxyHTTPRequest) -> Data {
         let presets = DispatchQueue.main.sync { PresetManager.shared.presets }
         let nameMap = DispatchQueue.main.sync { PresetManager.shared.presetNameMap }
-        let current = DispatchQueue.main.sync { self.currentPreset }
+        let sessionToken = request.headerValue("X-CCR-Session")
+        let current: String?
+        if let token = sessionToken {
+            current = DispatchQueue.main.sync { self.sessionPresets[token] }
+        } else {
+            current = DispatchQueue.main.sync { self.currentPreset }
+        }
 
         var items: [String] = []
         for preset in presets {
             let fsName = nameMap[preset.name] ?? preset.name
-            items.append(#"{"name":"\#(escapeJSON(preset.name))","id":"\#(escapeJSON(fsName))"}"#)
+            items.append(#"{"name":"\#(Self.escapeJSON(preset.name))","id":"\#(Self.escapeJSON(fsName))"}"#)
         }
-        let currentStr = current.map { #""\#(escapeJSON($0))""# } ?? "null"
+        let currentStr = current.map { #""\#(Self.escapeJSON($0))""# } ?? "null"
         let json = #"{"presets":[\#(items.joined(separator: ","))],"current":\#(currentStr)}"#
         return buildJSONResponse(status: 200, json: json)
     }
@@ -313,30 +336,30 @@ class ProxyService: ObservableObject {
         if nameMap.values.contains(presetName) {
             applyPreset(presetName)
             let displayName = nameMap.first(where: { $0.value == presetName })?.key ?? presetName
-            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(escapeJSON(displayName))","presetId":"\#(escapeJSON(presetName))"}"#)
+            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(Self.escapeJSON(displayName))","presetId":"\#(Self.escapeJSON(presetName))"}"#)
         }
 
         // Try display name
         if let fsName = nameMap[presetName] {
             applyPreset(fsName)
-            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(escapeJSON(presetName))","presetId":"\#(escapeJSON(fsName))"}"#)
+            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(Self.escapeJSON(presetName))","presetId":"\#(Self.escapeJSON(fsName))"}"#)
         }
 
         // Try case-insensitive match on display name
         if let match = presets.first(where: { $0.name.lowercased() == presetName.lowercased() }) {
             let fsName = nameMap[match.name] ?? match.name
             applyPreset(fsName)
-            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(escapeJSON(match.name))","presetId":"\#(escapeJSON(fsName))"}"#)
+            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(Self.escapeJSON(match.name))","presetId":"\#(Self.escapeJSON(fsName))"}"#)
         }
 
         // Try case-insensitive match on filesystem name
         if let match = nameMap.values.first(where: { $0.lowercased() == presetName.lowercased() }) {
             applyPreset(match)
             let displayName = nameMap.first(where: { $0.value == match })?.key ?? match
-            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(escapeJSON(displayName))","presetId":"\#(escapeJSON(match))"}"#)
+            return buildJSONResponse(status: 200, json: #"{"ok":true,"preset":"\#(Self.escapeJSON(displayName))","presetId":"\#(Self.escapeJSON(match))"}"#)
         }
 
-        return buildJSONResponse(status: 404, json: #"{"ok":false,"error":"Preset '\#(escapeJSON(presetName))' not found"}"#)
+        return buildJSONResponse(status: 404, json: #"{"ok":false,"error":"Preset '\#(Self.escapeJSON(presetName))' not found"}"#)
     }
 
     // MARK: - Proxy Forwarding
@@ -349,12 +372,14 @@ class ProxyService: ObservableObject {
         // Global fallback: /v1/messages
         var targetPath: String
         var preset: String?
+        var sessionToken: String?
 
         let path = request.path
         if path.hasPrefix("/s/") {
             let withoutPrefix = String(path.dropFirst(3))  // "{token}/v1/messages"
             if let slashIdx = withoutPrefix.firstIndex(of: "/") {
                 let token = String(withoutPrefix[withoutPrefix.startIndex..<slashIdx])
+                sessionToken = token
                 targetPath = String(withoutPrefix[slashIdx...])  // "/v1/messages"
                 preset = DispatchQueue.main.sync { self.sessionPresets[token] }
             } else {
@@ -383,15 +408,22 @@ class ProxyService: ObservableObject {
             return
         }
 
-        let selectedRoute = selectedRouteValue(for: preset, body: request.body)
+        let usageInputTokens = Self.estimatedInputTokens(from: request.body)
+        let selectedRouteInfo = selectedRouteInfo(for: preset, body: request.body, inputTokens: usageInputTokens)
+        let selectedRoute = selectedRouteInfo.value
         let usesOpus47 = selectedRoute?.lowercased().contains("anthropic,claude-opus-4-7") == true
         let usesOpenAIProvider = selectedRoute.map(Self.routeUsesOpenAIProvider) ?? false
+        let disablesThinking = selectedRoute.map(Self.routeDisablesThinking) ?? false
+        let forcedModel = selectedRoute.map(Self.requestModelForRoute)
         let sanitizedBody = Self.sanitizedJSONBodyForCCR(
             request.body,
             useAdaptiveThinking: usesOpus47,
             sanitizeForOpenAIProvider: usesOpenAIProvider,
-            forceModel: usesOpenAIProvider ? selectedRoute : nil
+            disableThinking: disablesThinking,
+            forceModel: forcedModel
         )
+        let outboundModel = Self.modelFromJSONBody(sanitizedBody) ?? "nil"
+        Self.appendDebug("route=\(selectedRouteInfo.name) selected=\(selectedRoute ?? "nil") outboundModel=\(outboundModel)")
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method
@@ -407,7 +439,7 @@ class ProxyService: ObservableObject {
                 let headerValue: String
                 if usesOpenAIProvider && lowerName == "anthropic-beta" {
                     headerValue = ""
-                } else if usesOpus47 && lowerName == "anthropic-beta" {
+                } else if (disablesThinking || usesOpus47) && lowerName == "anthropic-beta" {
                     headerValue = Self.removingInterleavedThinkingBeta(from: value)
                 } else {
                     headerValue = value
@@ -425,14 +457,37 @@ class ProxyService: ObservableObject {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 600
         config.timeoutIntervalForResource = 600
+
+        let presetName = preset.map { presetId in
+            DispatchQueue.main.sync { PresetManager.shared.displayName(for: presetId) ?? presetId }
+        } ?? "default"
+        let routeParts = selectedRoute.map(Self.providerAndModel(from:)) ?? (nil, requestModel == "nil" ? nil : requestModel)
+        let actualModel = outboundModel == "nil" ? routeParts.1 : outboundModel
+        let usageContext = ProxyUsageLogContext(
+            requestId: UUID().uuidString,
+            startedAt: Date(),
+            method: request.method,
+            path: request.path,
+            targetPath: targetPath,
+            session: sessionToken,
+            presetId: preset,
+            presetName: presetName,
+            route: selectedRouteInfo.name,
+            provider: routeParts.0,
+            model: actualModel,
+            requestModel: requestModel == "nil" ? nil : requestModel,
+            inputTokens: usageInputTokens
+        )
+        LiveTokenGenerationMeter.begin(context: usageContext)
+
         if usesOpenAIProvider {
-            let delegate = OpenAIToAnthropicProxyDelegate(clientConnection: clientConnection)
+            let delegate = OpenAIToAnthropicProxyDelegate(clientConnection: clientConnection, usageContext: usageContext)
             let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
             let task = session.dataTask(with: urlRequest)
             delegate.session = session
             task.resume()
         } else {
-            let delegate = StreamingProxyDelegate(clientConnection: clientConnection)
+            let delegate = StreamingProxyDelegate(clientConnection: clientConnection, usageContext: usageContext)
             let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
             let task = session.dataTask(with: urlRequest)
             delegate.session = session
@@ -479,7 +534,7 @@ class ProxyService: ObservableObject {
         }
     }
 
-    private nonisolated func escapeJSON(_ str: String) -> String {
+    private nonisolated static func escapeJSON(_ str: String) -> String {
         str.replacingOccurrences(of: "\\", with: "\\\\")
            .replacingOccurrences(of: "\"", with: "\\\"")
            .replacingOccurrences(of: "\n", with: "\\n")
@@ -487,24 +542,112 @@ class ProxyService: ObservableObject {
            .replacingOccurrences(of: "\t", with: "\\t")
     }
 
-    private nonisolated func selectedRouteValue(for preset: String?, body: Data?) -> String? {
-        guard let preset else { return nil }
+    private nonisolated func selectedRouteInfo(for preset: String?, body: Data?, inputTokens: Int) -> (name: String, value: String?) {
         let router: RouterConfig? = DispatchQueue.main.sync {
+            guard let preset else {
+                return ConfigManager.shared.config?.Router
+            }
             let presetManager = PresetManager.shared
             let displayName = presetManager.displayName(for: preset) ?? preset
             return presetManager.presets.first(where: {
                 $0.name == displayName || presetManager.fileSystemName(for: $0.name) == preset
             })?.router
         }
-        guard let router else { return nil }
-        if Self.bodyRequestsThinking(body), let thinkRoute = router.think {
-            return thinkRoute
+        guard let router else { return ("unknown", nil) }
+
+        let routeName = Self.routeName(for: body, inputTokens: inputTokens, threshold: router.longContextThreshold)
+        let routeValue: String?
+        switch routeName {
+        case "think": routeValue = router.think ?? router.default
+        case "longContext": routeValue = router.longContext ?? router.default
+        case "webSearch": routeValue = router.webSearch ?? router.default
+        case "image": routeValue = router.image ?? router.default
+        case "background": routeValue = router.background ?? router.default
+        default: routeValue = router.default
         }
-        return router.default
+        return (routeName, routeValue)
     }
 
     private nonisolated static func routeUsesOpenAIProvider(_ route: String) -> Bool {
         route.split(separator: ",", maxSplits: 1).first?.lowercased() == "openai"
+    }
+
+    private nonisolated static func routeDisablesThinking(_ route: String) -> Bool {
+        let (providerName, modelName) = providerAndModel(from: route)
+        guard let providerName, let modelName else { return false }
+        return DispatchQueue.main.sync {
+            ConfigManager.shared.config?.Providers.first {
+                $0.name.caseInsensitiveCompare(providerName) == .orderedSame
+            }?.thinking_disabled_models?.contains(modelName) == true
+        }
+    }
+
+    private nonisolated static func providerAndModel(from route: String) -> (String?, String?) {
+        let parts = route.split(separator: ",", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return (nil, route) }
+        return (parts[0], parts[1])
+    }
+
+    private nonisolated static func requestModelForRoute(_ route: String) -> String {
+        let cleaned = stripTerminalControlSequences(from: route)
+        let parts = cleaned.split(separator: ",", maxSplits: 1).map(String.init)
+        return parts.count == 2 ? parts[1] : cleaned
+    }
+
+    nonisolated static func responseDataByRewritingModel(_ data: Data, to model: String?) -> Data {
+        guard let model, !model.isEmpty else { return data }
+
+        if var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           json["model"] != nil {
+            json["model"] = model
+            return (try? JSONSerialization.data(withJSONObject: json)) ?? data
+        }
+
+        guard var text = String(data: data, encoding: .utf8) else { return data }
+        let escapedModel = Self.escapeJSON(model)
+        let pattern = #""model"\s*:\s*"[^"]*""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return data }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        text = regex.stringByReplacingMatches(
+            in: text,
+            range: range,
+            withTemplate: #""model":"\#(escapedModel)""#
+        )
+        return Data(text.utf8)
+    }
+
+    private nonisolated static func routeName(for body: Data?, inputTokens: Int, threshold: Int?) -> String {
+        guard let body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return "default"
+        }
+        return TokenUsageService.detectMode(in: json, inputTokens: inputTokens, longContextThreshold: threshold)
+    }
+
+    private nonisolated static func estimatedInputTokens(from body: Data?) -> Int {
+        guard let body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return 0
+        }
+        let messages = json["messages"] as? [[String: Any]] ?? []
+        let system = json["system"] as? [[String: Any]] ?? []
+        return max((estimatedContentSize(messages) + estimatedContentSize(system)) / 3, 0)
+    }
+
+    private nonisolated static func estimatedContentSize(_ items: [[String: Any]]) -> Int {
+        var size = 0
+        for item in items {
+            if let text = item["text"] as? String {
+                size += text.count
+            }
+            if let content = item["content"] as? [[String: Any]] {
+                size += estimatedContentSize(content)
+            }
+            if let content = item["content"] as? String {
+                size += content.count
+            }
+        }
+        return size
     }
 
     private nonisolated static func bodyRequestsThinking(_ body: Data?) -> Bool {
@@ -521,6 +664,7 @@ class ProxyService: ObservableObject {
         _ body: Data?,
         useAdaptiveThinking: Bool = false,
         sanitizeForOpenAIProvider: Bool = false,
+        disableThinking: Bool = false,
         forceModel: String? = nil
     ) -> Data? {
         guard let body,
@@ -537,7 +681,26 @@ class ProxyService: ObservableObject {
             }
         }
 
-        if useAdaptiveThinking,
+        if disableThinking {
+            if json.removeValue(forKey: "thinking") != nil {
+                changed = true
+            }
+            if json.removeValue(forKey: "output_config") != nil {
+                changed = true
+            }
+            if var betas = json["anthropic_beta"] as? [String] {
+                betas.removeAll { $0 == "interleaved-thinking-2025-05-14" }
+                if betas.isEmpty {
+                    json.removeValue(forKey: "anthropic_beta")
+                } else {
+                    json["anthropic_beta"] = betas
+                }
+                changed = true
+            }
+        }
+
+        if !disableThinking,
+           useAdaptiveThinking,
            var thinking = json["thinking"] as? [String: Any],
            (thinking["type"] as? String)?.lowercased() == "enabled" {
             let effort = effortForAdaptiveThinking(budgetTokens: thinking["budget_tokens"])
@@ -562,11 +725,15 @@ class ProxyService: ObservableObject {
             changed = true
         }
 
-        if sanitizeForOpenAIProvider {
-            if let forceModel {
-                json["model"] = forceModel
+        if let forceModel {
+            let cleaned = stripTerminalControlSequences(from: forceModel)
+            if json["model"] as? String != cleaned {
+                json["model"] = cleaned
                 changed = true
             }
+        }
+
+        if sanitizeForOpenAIProvider {
             for key in ["context_management", "output_config", "thinking", "anthropic_beta", "metadata"] {
                 if json[key] != nil {
                     json.removeValue(forKey: key)
@@ -1030,17 +1197,43 @@ class ProxyService: ObservableObject {
             try? output.write(to: url, atomically: true, encoding: .utf8)
         }
     }
+
+    nonisolated static func appendUsageLog(
+        context: ProxyUsageLogContext,
+        statusCode: Int,
+        outputTokens: Int,
+        error: String? = nil,
+        responseBodyBytes: Int? = nil,
+        upstreamInputTokens: Int? = nil,
+        upstreamOutputTokens: Int? = nil
+    ) {
+        let completedAt = Date()
+        UsageLogStore.append(UsageLogRecord(
+            context: context,
+            completedAt: completedAt,
+            statusCode: statusCode,
+            outputTokens: outputTokens,
+            error: error,
+            responseBodyBytes: responseBodyBytes,
+            upstreamInputTokens: upstreamInputTokens,
+            upstreamOutputTokens: upstreamOutputTokens
+        ))
+    }
 }
 
 // MARK: - Streaming Proxy Delegate
 
 private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
     let clientConnection: NWConnection
+    let usageContext: ProxyUsageLogContext
     var headersSent = false
     var session: URLSession?
+    private var statusCode = 502
+    private var liveMeterBuffer = ""
 
-    init(clientConnection: NWConnection) {
+    init(clientConnection: NWConnection, usageContext: ProxyUsageLogContext) {
         self.clientConnection = clientConnection
+        self.usageContext = usageContext
         super.init()
     }
 
@@ -1049,6 +1242,7 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
             completionHandler(.cancel)
             return
         }
+        statusCode = httpResponse.statusCode
 
         // Build and send HTTP response headers to client
         var headerStr = "HTTP/1.1 \(httpResponse.statusCode) \(HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))\r\n"
@@ -1072,10 +1266,26 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         // Forward each chunk immediately for SSE streaming
-        clientConnection.send(content: data, completion: .contentProcessed { _ in })
+        let normalizedData = ProxyService.responseDataByRewritingModel(data, to: usageContext.requestModel)
+        ingestLiveMeterData(normalizedData)
+        clientConnection.send(content: normalizedData, completion: .contentProcessed { _ in })
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        flushLiveMeterBuffer()
+        let durationSeconds = Date().timeIntervalSince(usageContext.startedAt)
+        let estimatedOutput = error == nil && (200..<300).contains(statusCode) ? max(Int(durationSeconds * 50), 0) : 0
+        ProxyService.appendUsageLog(
+            context: usageContext,
+            statusCode: error == nil ? statusCode : 502,
+            outputTokens: estimatedOutput,
+            error: error?.localizedDescription
+        )
+        LiveTokenGenerationMeter.finish(
+            requestId: usageContext.requestId,
+            finalOutputTokens: error == nil ? estimatedOutput : 0
+        )
+
         if !headersSent {
             // CCR not reachable — send error response
             let body = Data(#"{"error":"CCR server not reachable","type":"proxy_error"}"#.utf8)
@@ -1097,16 +1307,38 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
             })
         }
     }
+
+    private func ingestLiveMeterData(_ data: Data) {
+        guard let text = String(data: data, encoding: .utf8) else {
+            LiveTokenGenerationMeter.ingestChunk(requestId: usageContext.requestId, data: data)
+            return
+        }
+
+        liveMeterBuffer += text
+        while let range = liveMeterBuffer.range(of: "\n\n") {
+            let event = String(liveMeterBuffer[..<range.upperBound])
+            liveMeterBuffer = String(liveMeterBuffer[range.upperBound...])
+            LiveTokenGenerationMeter.ingestChunk(requestId: usageContext.requestId, data: Data(event.utf8))
+        }
+    }
+
+    private func flushLiveMeterBuffer() {
+        guard !liveMeterBuffer.isEmpty else { return }
+        LiveTokenGenerationMeter.ingestChunk(requestId: usageContext.requestId, data: Data(liveMeterBuffer.utf8))
+        liveMeterBuffer = ""
+    }
 }
 
 private class OpenAIToAnthropicProxyDelegate: NSObject, URLSessionDataDelegate {
     let clientConnection: NWConnection
+    let usageContext: ProxyUsageLogContext
     var session: URLSession?
     private var response: HTTPURLResponse?
     private var body = Data()
 
-    init(clientConnection: NWConnection) {
+    init(clientConnection: NWConnection, usageContext: ProxyUsageLogContext) {
         self.clientConnection = clientConnection
+        self.usageContext = usageContext
         super.init()
     }
 
@@ -1125,20 +1357,55 @@ private class OpenAIToAnthropicProxyDelegate: NSObject, URLSessionDataDelegate {
         }
 
         if error != nil {
+            ProxyService.appendUsageLog(
+                context: usageContext,
+                statusCode: 502,
+                outputTokens: 0,
+                error: error?.localizedDescription,
+                responseBodyBytes: body.count
+            )
+            LiveTokenGenerationMeter.finish(requestId: usageContext.requestId, finalOutputTokens: 0)
             sendJSONError(status: 502, json: #"{"error":"CCR server not reachable","type":"proxy_error"}"#)
             return
         }
 
         let status = response?.statusCode ?? 502
         if status < 200 || status >= 300 {
+            ProxyService.appendUsageLog(
+                context: usageContext,
+                statusCode: status,
+                outputTokens: 0,
+                responseBodyBytes: body.count
+            )
+            LiveTokenGenerationMeter.finish(requestId: usageContext.requestId, finalOutputTokens: 0)
             sendRaw(status: status, contentType: "application/json", data: body)
             return
         }
 
         guard let converted = ProxyService.openAIChatResponseToAnthropicSSE(body) else {
+            ProxyService.appendUsageLog(
+                context: usageContext,
+                statusCode: 502,
+                outputTokens: 0,
+                error: "OpenAI response could not be converted to Anthropic SSE",
+                responseBodyBytes: body.count
+            )
+            LiveTokenGenerationMeter.finish(requestId: usageContext.requestId, finalOutputTokens: 0)
             sendJSONError(status: 502, json: #"{"error":"OpenAI response could not be converted to Anthropic SSE","type":"proxy_error"}"#)
             return
         }
+
+        let usage = Self.openAIUsage(from: body)
+        let outputTokens = usage.output ?? max(Int(Date().timeIntervalSince(usageContext.startedAt) * 50), 0)
+        ProxyService.appendUsageLog(
+            context: usageContext,
+            statusCode: status,
+            outputTokens: outputTokens,
+            responseBodyBytes: body.count,
+            upstreamInputTokens: usage.input,
+            upstreamOutputTokens: usage.output
+        )
+        LiveTokenGenerationMeter.finish(requestId: usageContext.requestId, finalOutputTokens: outputTokens)
 
         sendRaw(status: 200, contentType: "text/event-stream", data: converted)
     }
@@ -1160,5 +1427,16 @@ private class OpenAIToAnthropicProxyDelegate: NSObject, URLSessionDataDelegate {
         clientConnection.send(content: output, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self] _ in
             self?.clientConnection.cancel()
         })
+    }
+
+    private static func openAIUsage(from body: Data) -> (input: Int?, output: Int?) {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let usage = json["usage"] as? [String: Any] else {
+            return (nil, nil)
+        }
+        return (
+            usage["prompt_tokens"] as? Int,
+            usage["completion_tokens"] as? Int
+        )
     }
 }

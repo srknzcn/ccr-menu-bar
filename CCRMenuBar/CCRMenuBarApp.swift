@@ -19,6 +19,7 @@ struct CCRMenuBarApp: App {
         _mcpInstaller = StateObject(wrappedValue: installer)
 
         Task { @MainActor in
+            SpendLimitNotificationService.requestAuthorization()
             proxy.start()
             installer.installAll()
             if let providers = ConfigManager.shared.config?.Providers {
@@ -51,7 +52,11 @@ struct CCRMenuBarApp: App {
         .menuBarExtraStyle(.window)
 
         Window("CCR Settings", id: "settings") {
-            SettingsView(configManager: configManager, mcpInstaller: mcpInstaller)
+            SettingsView(
+                configManager: configManager,
+                mcpInstaller: mcpInstaller,
+                tokenUsageService: tokenUsageService
+            )
         }
         .defaultSize(width: 760, height: 600)
     }

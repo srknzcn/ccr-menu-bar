@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "agentsroom-browser": {
+      "command": "node",
+      "args": [
+        "/private/var/folders/zl/88f6v7qx2ql7k_8n88kz0l2w0000gn/T/AppTranslocation/6F3CF8D8-E413-4351-97B5-E7421410DEC3/d/AgentsRoom.app/Contents/Resources/browser-mcp-server.cjs"
+      ],
+      "env": {
+        "AR_BROWSER_BRIDGE_FILE": "/Users/serkan/.agentsroom/browser-bridge.json",
+        "AR_BROWSER_PROJECT_ID": "proj-1777435920584-442mcx"
+      }
+    },
+    "AgentsRoom-MCP": {
+      "command": "node",
+      "args": [
+        "/private/var/folders/zl/88f6v7qx2ql7k_8n88kz0l2w0000gn/T/AppTranslocation/6F3CF8D8-E413-4351-97B5-E7421410DEC3/d/AgentsRoom.app/Contents/Resources/app-mcp-server.cjs"
+      ],
+      "env": {
+        "AR_PROJECT_ID": "proj-1777435920584-442mcx",
+        "AR_PROJECT_PATH": "/Users/serkan/Projects/ccr-menu-bar",
+        "AR_API_BASE_URL": "https://agentsroom.dev",
+        "AR_SETTINGS_FILE": "/Users/serkan/.agentsroom/settings.json",
+        "AR_BRIDGE_FILE": "/Users/serkan/.agentsroom/browser-bridge.json"
+      }
+    }
+  }
+}

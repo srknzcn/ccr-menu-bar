@@ -274,6 +274,17 @@ ccm_debug() {
 
 ccm_debug "prompt=$PROMPT arg=$ARG CCR_SESSION=${CCR_SESSION:-nil} ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-nil}"
 
+ccr_session() {
+    python3 - "$CCR_SESSION" << 'PYEOF'
+import os, re, sys
+session = sys.argv[1] if len(sys.argv) > 1 else ""
+if not session:
+    match = re.search(r"/s/([^/]+)", os.environ.get("ANTHROPIC_BASE_URL", ""))
+    session = match.group(1) if match else ""
+print(session)
+PYEOF
+}
+
 ccr_switch() {
     local preset="$1"
     local result
@@ -302,20 +313,26 @@ PYEOF
 }
 
 if [ -z "$ARG" ]; then
-    CURRENT=$(curl -s "$BASE/_api/current" -H "X-CCR-Session: $CCR_SESSION" 2>/dev/null)
+    SESSION=$(ccr_session)
+    CURRENT=$(curl -s "$BASE/_api/current" -H "X-CCR-Session: $SESSION" 2>/dev/null)
     PRESET=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('preset') or 'default')" <<< "$CURRENT" 2>/dev/null)
     MSG="Current preset: $PRESET"
 
 elif [ "$ARG" = "list" ]; then
-    PRESETS_JSON=$(curl -s "$BASE/_api/presets" 2>/dev/null)
+    SESSION=$(ccr_session)
+    PRESETS_JSON=$(curl -s "$BASE/_api/presets" -H "X-CCR-Session: $SESSION" 2>/dev/null)
     MSG=$(python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 cur=d.get('current')
 lines=[]
 for p in d.get('presets',[]):
-    mark = ' ←' if p['id']==cur else ''
+    mark = ' *' if p['id']==cur else ''
     lines.append(f\"  {p['name']} [{p['id']}]{mark}\")
+if cur is None:
+    lines.insert(0, '  default [default] *')
+else:
+    lines.insert(0, '  default [default]')
 print('\\n'.join(lines))
 " <<< "$PRESETS_JSON" 2>/dev/null)
 

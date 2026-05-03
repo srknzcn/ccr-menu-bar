@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var mcpInstaller: MCPInstaller
+    @ObservedObject var tokenUsageService: TokenUsageService
     @State private var selectedTab = 0
 
     var body: some View {
@@ -32,13 +33,13 @@ struct SettingsView: View {
             Group {
                 switch selectedTab {
                 case 0:
-                    ProvidersTab(configManager: configManager)
+                    ProvidersTab(configManager: configManager, tokenUsageService: tokenUsageService)
                 case 1:
                     PresetsTab(configManager: configManager)
                 case 3:
                     IntegrationsTab(mcpInstaller: mcpInstaller)
                 default:
-                    GeneralTab(configManager: configManager)
+                    GeneralTab(configManager: configManager, tokenUsageService: tokenUsageService)
                 }
             }
         }

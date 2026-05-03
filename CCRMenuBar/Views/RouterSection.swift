@@ -14,6 +14,9 @@ struct RouterSection: View {
                         models: configManager.availableModels(),
                         onSelect: { provider, model in
                             configManager.setRoute(route, provider: provider, model: model)
+                        },
+                        onToggleThinking: { provider, model, disabled in
+                            configManager.setThinkingDisabled(provider: provider, model: model, disabled: disabled)
                         }
                     )
                 }
@@ -35,8 +38,9 @@ struct RouterSection: View {
 struct RouteRow: View {
     let route: RouterRoute
     let currentValue: String
-    let models: [(provider: String, model: String)]
+    let models: [(provider: String, model: String, thinkingDisabled: Bool)]
     let onSelect: (String, String) -> Void
+    let onToggleThinking: (String, String, Bool) -> Void
     @State private var isHovered = false
     @State private var showPicker = false
     @State private var searchText = ""
@@ -118,6 +122,9 @@ struct RouteRow: View {
                 onSelect: { provider, model in
                     onSelect(provider, model)
                     showPicker = false
+                },
+                onToggleThinking: { provider, model, disabled in
+                    onToggleThinking(provider, model, disabled)
                 }
             )
         }
@@ -127,12 +134,13 @@ struct RouteRow: View {
 // MARK: - Model Search Popover
 
 private struct ModelSearchPopover: View {
-    let models: [(provider: String, model: String)]
+    let models: [(provider: String, model: String, thinkingDisabled: Bool)]
     let currentValue: String
     @Binding var searchText: String
     let onSelect: (String, String) -> Void
+    let onToggleThinking: (String, String, Bool) -> Void
 
-    private var filteredGroups: [(provider: String, models: [(provider: String, model: String)])] {
+    private var filteredGroups: [(provider: String, models: [(provider: String, model: String, thinkingDisabled: Bool)])] {
         let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
         let filtered = query.isEmpty ? models : models.filter {
             $0.provider.lowercased().contains(query) || $0.model.lowercased().contains(query)
@@ -203,9 +211,17 @@ private struct ModelSearchPopover: View {
                                     let item = group.models[idx]
                                     let value = "\(item.provider),\(item.model)"
                                     let isSelected = currentValue == value
-                                    RouteModelRow(name: item.model, isSelected: isSelected) {
-                                        onSelect(item.provider, item.model)
-                                    }
+                                    RouteModelRow(
+                                        name: item.model,
+                                        isSelected: isSelected,
+                                        action: {
+                                            onSelect(item.provider, item.model)
+                                        },
+                                        thinkingDisabled: item.thinkingDisabled,
+                                        onToggleThinking: {
+                                            onToggleThinking(item.provider, item.model, !item.thinkingDisabled)
+                                        }
+                                    )
                                     .id(value)
                                 }
                             }
@@ -231,30 +247,49 @@ private struct RouteModelRow: View {
     let name: String
     let isSelected: Bool
     let action: () -> Void
+    let thinkingDisabled: Bool
+    let onToggleThinking: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.blue)
-                    .opacity(isSelected ? 1 : 0)
-                    .frame(width: 14)
+        HStack(spacing: 6) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.blue)
+                        .opacity(isSelected ? 1 : 0)
+                        .frame(width: 14)
 
-                Text(name)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    Text(name)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-                Spacer()
+                    Spacer()
+                }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(isHovered ? Color.blue.opacity(0.1) : .clear)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            Button(action: onToggleThinking) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(thinkingDisabled ? .white : .clear)
+                    .frame(width: 18, height: 18)
+                    .background(thinkingDisabled ? Color.orange : Color.secondary.opacity(0.16), in: RoundedRectangle(cornerRadius: 4))
+                    .overlay {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 9))
+                            .foregroundStyle(thinkingDisabled ? .white : .secondary)
+                    }
+            }
+            .buttonStyle(.plain)
+            .help(thinkingDisabled ? "Thinking disabled for this model" : "Disable thinking for this model")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(isHovered ? Color.blue.opacity(0.1) : .clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
     }
 }

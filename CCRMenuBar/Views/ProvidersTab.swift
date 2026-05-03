@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProvidersTab: View {
     @ObservedObject var configManager: ConfigManager
+    @ObservedObject var tokenUsageService: TokenUsageService
     @State private var selectedProvider: String?
     @State private var newModelName = ""
     @State private var showAPIKey = false
@@ -64,6 +65,10 @@ struct ProvidersTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .onAppear {
+            syncUsageContext()
+            tokenUsageService.refresh()
+        }
     }
 
     @ViewBuilder
@@ -120,6 +125,26 @@ struct ProvidersTab: View {
                     }
                 }
 
+                SettingsCard(title: "Daily Spend Limit", icon: "bell.badge", color: .yellow) {
+                    SettingsRow(label: "Limit") {
+                        HStack(spacing: 8) {
+                            Text("$")
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            TextField("Disabled", text: dailyLimitBinding(for: index))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 120)
+                            Text("USD/day")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                            Spacer()
+                            Text(todaySpendLabel(for: configManager.config?.Providers[index].name ?? ""))
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 // Models card
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
@@ -141,9 +166,21 @@ struct ProvidersTab: View {
 
                     VStack(spacing: 4) {
                         ForEach(configManager.config?.Providers[index].models ?? [], id: \.self) { model in
-                            ModelRow(model: model) {
-                                configManager.config?.Providers[index].models.removeAll { $0 == model }
-                            }
+                            ModelRow(
+                                model: model,
+                                thinkingDisabled: isThinkingDisabled(providerIndex: index, model: model),
+                                onToggleThinking: {
+                                    setThinkingDisabled(
+                                        providerIndex: index,
+                                        model: model,
+                                        disabled: !isThinkingDisabled(providerIndex: index, model: model)
+                                    )
+                                },
+                                onDelete: {
+                                    configManager.config?.Providers[index].models.removeAll { $0 == model }
+                                    setThinkingDisabled(providerIndex: index, model: model, disabled: false)
+                                }
+                            )
                         }
                     }
 
@@ -186,6 +223,7 @@ struct ProvidersTab: View {
                             .transition(.opacity.combined(with: .scale))
                     }
                     Button {
+                        syncUsageContext()
                         configManager.save()
                         withAnimation { showSaved = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -212,6 +250,49 @@ struct ProvidersTab: View {
         newModelName = ""
     }
 
+    private func isThinkingDisabled(providerIndex index: Int, model: String) -> Bool {
+        configManager.config?.Providers[index].thinking_disabled_models?.contains(model) == true
+    }
+
+    private func setThinkingDisabled(providerIndex index: Int, model: String, disabled: Bool) {
+        guard configManager.config != nil else { return }
+        var disabledModels = configManager.config?.Providers[index].thinking_disabled_models ?? []
+        disabledModels.removeAll { $0 == model }
+        if disabled {
+            disabledModels.append(model)
+        }
+        configManager.config?.Providers[index].thinking_disabled_models = disabledModels.isEmpty ? nil : disabledModels
+        configManager.hasUnsavedChanges = true
+    }
+
+    private func dailyLimitBinding(for index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard let value = configManager.config?.Providers[index].daily_spend_limit_usd else { return "" }
+                return Self.limitFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+            },
+            set: { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                let normalized = trimmed.replacingOccurrences(of: ",", with: ".")
+                configManager.config?.Providers[index].daily_spend_limit_usd = trimmed.isEmpty
+                    ? nil
+                    : (Self.limitFormatter.number(from: trimmed)?.doubleValue ?? Double(normalized))
+            }
+        )
+    }
+
+    private func todaySpendLabel(for provider: String) -> String {
+        guard let cost = tokenUsageService.todayProviderCostsUSD[provider] else {
+            return "$0 today"
+        }
+        return "\(Self.formattedCost(cost)) today"
+    }
+
+    private func syncUsageContext() {
+        tokenUsageService.providers = configManager.config?.Providers ?? []
+        tokenUsageService.router = configManager.config?.Router
+    }
+
     private func addProvider() {
         let newProvider = Provider(
             name: "new-provider",
@@ -227,6 +308,24 @@ struct ProvidersTab: View {
         guard let name = selectedProvider else { return }
         configManager.config?.Providers.removeAll { $0.name == name }
         selectedProvider = nil
+    }
+
+    private static let limitFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 4
+        formatter.numberStyle = .decimal
+        return formatter
+    }()
+
+    private static func formattedCost(_ cost: Double) -> String {
+        if cost < 0.0001 {
+            return String(format: "$%.6f", cost)
+        }
+        if cost < 1 {
+            return String(format: "$%.4f", cost)
+        }
+        return String(format: "$%.2f", cost)
     }
 }
 
@@ -381,6 +480,8 @@ struct TransformerRow: View {
 
 struct ModelRow: View {
     let model: String
+    let thinkingDisabled: Bool
+    let onToggleThinking: () -> Void
     let onDelete: () -> Void
     @State private var isHovered = false
 
@@ -393,6 +494,24 @@ struct ModelRow: View {
                 .font(.system(size: 12, design: .monospaced))
                 .lineLimit(1)
             Spacer()
+            Button(action: onToggleThinking) {
+                HStack(spacing: 4) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 9))
+                    Text(thinkingDisabled ? "Think Off" : "Think On")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(thinkingDisabled ? Color.orange : Color.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    thinkingDisabled ? Color.orange.opacity(0.14) : Color.secondary.opacity(0.10),
+                    in: Capsule()
+                )
+            }
+            .buttonStyle(.plain)
+            .help(thinkingDisabled ? "Thinking disabled for this model" : "Disable thinking for this model")
+
             if isHovered {
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
