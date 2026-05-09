@@ -91,8 +91,13 @@
     <!-- Visual Showcase -->
     <section class="pb-24 px-6 overflow-hidden">
         <div class="max-w-5xl mx-auto">
-            <div class="relative rounded-2xl shadow-2xl border border-gray-100 overflow-hidden bg-apple-light p-4 md:p-8">
-                <img src="assets/ccr-menu-bar.png" alt="CCR Menu Bar Screenshot" class="rounded-lg shadow-lg mx-auto border border-gray-200">
+            <div class="grid grid-cols-1 lg:grid-cols-[0.75fr_1.35fr] gap-6 items-start">
+                <div class="relative rounded-2xl shadow-2xl border border-gray-100 overflow-hidden bg-apple-light p-4 md:p-6">
+                    <img src="assets/ccr-menu-bar.png" alt="CCR Menu Bar menu bar popup" class="rounded-lg shadow-lg mx-auto border border-gray-200">
+                </div>
+                <div class="relative rounded-2xl shadow-2xl border border-gray-100 overflow-hidden bg-apple-light p-4 md:p-6">
+                    <img src="assets/ccr-settings.png" alt="CCR Menu Bar settings window" class="rounded-lg shadow-lg mx-auto border border-gray-200">
+                </div>
             </div>
         </div>
     </section>
@@ -148,11 +153,11 @@
             <div class="space-y-6">
                 <div class="flex gap-4">
                     <div class="flex-shrink-0 w-8 h-8 rounded-full bg-apple-blue text-white flex items-center justify-center font-bold">1</div>
-                    <p class="text-lg">Download the latest <span class="font-semibold">CCR Menu Bar.app</span> from the GitHub releases page.</p>
+                    <p class="text-lg">Download the latest <span class="font-semibold">CCR.Menu.Bar.zip</span> from the GitHub releases page.</p>
                 </div>
                 <div class="flex gap-4">
                     <div class="flex-shrink-0 w-8 h-8 rounded-full bg-apple-blue text-white flex items-center justify-center font-bold">2</div>
-                    <p class="text-lg">Drag the application to your <span class="font-semibold">Applications</span> folder.</p>
+                    <p class="text-lg">Unzip it and drag <span class="font-semibold">CCR Menu Bar.app</span> to your <span class="font-semibold">Applications</span> folder.</p>
                 </div>
                 <div class="flex gap-4">
                     <div class="flex-shrink-0 w-8 h-8 rounded-full bg-apple-blue text-white flex items-center justify-center font-bold">3</div>
@@ -160,7 +165,7 @@
                 </div>
             </div>
             <p class="mt-12 p-4 bg-yellow-50 rounded-lg border border-yellow-100 text-sm text-yellow-800">
-                <strong>Note:</strong> Since this app is distributed outside the App Store, you might need to right-click and select "Open" for the first launch to bypass macOS Gatekeeper.
+                <strong>Note:</strong> Release builds are for Apple Silicon Macs running macOS 14.0 or later. If macOS blocks the app, open <strong>System Settings → Privacy & Security</strong> and choose <strong>Open Anyway</strong>.
             </p>
         </div>
     </section>

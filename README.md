@@ -17,6 +17,12 @@ A native macOS menu bar application for managing [Claude Code Router (CCR)](http
 
 ## Features
 
+## Screenshots
+
+| Menu Bar Popup | Settings |
+| --- | --- |
+| <img src="assets/ccr-menu-bar.png" alt="CCR Menu Bar menu bar popup" width="360"> | <img src="assets/ccr-settings.png" alt="CCR Menu Bar settings window" width="520"> |
+
 ### Menu Bar Control
 - Live server status indicator (green = running, white = stopped)
 - One-click Start / Stop / Restart
