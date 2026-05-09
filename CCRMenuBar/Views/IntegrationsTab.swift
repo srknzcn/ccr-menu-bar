@@ -241,7 +241,7 @@ struct IntegrationsTab: View {
             CCR_SESSION="$session" \\
             ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \\
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \\
-            claude --bare "$@"
+            claude "$@"
           else
             command ccr "$@"
           fi
