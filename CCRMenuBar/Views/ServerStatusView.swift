@@ -34,17 +34,33 @@ struct ServerStatusView: View {
 
             Spacer()
 
-            if !serverManager.ccrFound {
-                Button {
-                    serverManager.installCCRAndStart()
-                } label: {
-                    Label(serverManager.isInstallingCCR ? "installing ccr..." : "ccr not found", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.orange)
+            if !serverManager.ccrFound || !serverManager.claudeFound {
+                HStack(spacing: 8) {
+                    if !serverManager.claudeFound {
+                        Button {
+                            serverManager.openClaudeCodeInstallGuide()
+                        } label: {
+                            Label("claude cli not found", systemImage: "terminal.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open Claude Code CLI install guide")
+                    }
+
+                    if !serverManager.ccrFound {
+                        Button {
+                            serverManager.installCCRAndStart()
+                        } label: {
+                            Label(serverManager.isInstallingCCR ? "installing ccr..." : "ccr not found", systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(serverManager.isInstallingCCR)
+                        .help(serverManager.isInstallingCCR ? "Installing Claude Code Router" : "Install Claude Code Router and start CCR server")
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(serverManager.isInstallingCCR)
-                .help(serverManager.isInstallingCCR ? "Installing Claude Code Router" : "Install Claude Code Router and start CCR server")
             } else {
                 HStack(spacing: 6) {
                     if serverManager.isRunning {

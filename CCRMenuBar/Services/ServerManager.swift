@@ -1,25 +1,30 @@
 // CCRMenuBar/Services/ServerManager.swift
 import Foundation
 import Combine
+import AppKit
 
 @MainActor
 class ServerManager: ObservableObject {
     @Published var isRunning = false
     @Published var errorMessage: String?
     @Published var ccrFound = true
+    @Published var claudeFound = true
     @Published var isInstallingCCR = false
 
     private var timer: Timer?
     private let pidPath: String
     private var port: Int { ConfigManager.shared.config?.PORT ?? 3456 }
+    private static let claudeCodeInstallURL = URL(string: "https://code.claude.com/docs/en/quickstart")!
 
     /// Resolved full path to ccr binary, found once at init
     private var ccrPath: String?
+    private var claudePath: String?
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         pidPath = "\(home)/.claude-code-router/.claude-code-router.pid"
         resolveCCRPath()
+        resolveClaudePath()
         checkStatus()
         startPolling()
     }
@@ -30,43 +35,15 @@ class ServerManager: ObservableObject {
 
     /// Find ccr binary path by sourcing user's shell profile
     private func resolveCCRPath() {
-        // Try common nvm/node paths first (fast, no shell spawn)
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let candidates = [
-            "\(home)/.nvm/versions/node",  // nvm - scan for latest
-            "/usr/local/bin/ccr",
-            "/opt/homebrew/bin/ccr",
-            "\(home)/.bun/bin/ccr",
-            "\(home)/.local/bin/ccr",
-        ]
-
-        // Check nvm directory for ccr
-        let nvmBase = "\(home)/.nvm/versions/node"
-        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmBase) {
-            let sorted = versions.sorted().reversed() // newest first
-            for version in sorted {
-                let path = "\(nvmBase)/\(version)/bin/ccr"
-                if FileManager.default.isExecutableFile(atPath: path) {
-                    ccrPath = path
-                    ccrFound = true
-                    return
-                }
-            }
-        }
-
-        // Check other common paths
-        for path in candidates where !path.contains(".nvm") {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                ccrPath = path
-                ccrFound = true
-                return
-            }
-        }
-
-        // Last resort: interactive login shell
-        let result = shell("which ccr")
-        let path = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if result.exitCode == 0 && !path.isEmpty && FileManager.default.isExecutableFile(atPath: path) {
+        if let path = resolveBinaryPath(
+            name: "ccr",
+            commonPaths: [
+                "/usr/local/bin/ccr",
+                "/opt/homebrew/bin/ccr",
+                "\(FileManager.default.homeDirectoryForCurrentUser.path)/.bun/bin/ccr",
+                "\(FileManager.default.homeDirectoryForCurrentUser.path)/.local/bin/ccr",
+            ]
+        ) {
             ccrPath = path
             ccrFound = true
             return
@@ -74,6 +51,64 @@ class ServerManager: ObservableObject {
 
         ccrPath = nil
         ccrFound = false
+    }
+
+    private func resolveClaudePath() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if let path = resolveBinaryPath(
+            name: "claude",
+            commonPaths: [
+                "/usr/local/bin/claude",
+                "/opt/homebrew/bin/claude",
+                "\(home)/.claude/local/claude",
+                "\(home)/.bun/bin/claude",
+                "\(home)/.local/bin/claude",
+            ]
+        ) {
+            claudePath = path
+            claudeFound = true
+            return
+        }
+
+        claudePath = nil
+        claudeFound = false
+    }
+
+    private func resolveBinaryPath(name: String, commonPaths: [String]) -> String? {
+        // Try common nvm/node paths first (fast, no shell spawn)
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+
+        // Check nvm directory for npm-installed binaries.
+        let nvmBase = "\(home)/.nvm/versions/node"
+        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmBase) {
+            let sorted = versions.sorted().reversed() // newest first
+            for version in sorted {
+                let path = "\(nvmBase)/\(version)/bin/\(name)"
+                if FileManager.default.isExecutableFile(atPath: path) {
+                    return path
+                }
+            }
+        }
+
+        // Check other common paths
+        for path in commonPaths {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+
+        // Last resort: interactive login shell
+        let result = shell("command -v \(name)")
+        let path = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.exitCode == 0 && !path.isEmpty && FileManager.default.isExecutableFile(atPath: path) {
+            return path
+        }
+
+        return nil
+    }
+
+    func openClaudeCodeInstallGuide() {
+        NSWorkspace.shared.open(Self.claudeCodeInstallURL)
     }
 
     func checkStatus() {
