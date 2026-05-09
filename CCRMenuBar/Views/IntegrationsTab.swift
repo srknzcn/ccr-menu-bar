@@ -231,14 +231,12 @@ struct IntegrationsTab: View {
 
     private var zshrcSnippet: String {
         """
-        unset ANTHROPIC_BASE_URL
-        [[ "$ANTHROPIC_API_KEY" == "any-value" ]] && unset ANTHROPIC_API_KEY
-
         ccm() {
           if [[ "$1" == "code" ]]; then
             shift
             local session="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}"
-            local api_key="${ANTHROPIC_API_KEY:-${MY_ANTHROPIC_API_KEY:-any-value}}"
+            local api_key="${ANTHROPIC_API_KEY:-}"
+            [[ -z "$api_key" || "$api_key" == "any-value" ]] && api_key="${MY_ANTHROPIC_API_KEY:-any-value}"
             CCR_SESSION="$session" \\
             ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \\
             ANTHROPIC_API_KEY="$api_key" \\
