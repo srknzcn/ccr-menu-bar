@@ -127,7 +127,7 @@ class MCPInstaller: ObservableObject {
         let required = [
             "ccm() {",
             #"ANTHROPIC_BASE_URL="http://localhost:3457/s/$session""#,
-            #"ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}""#,
+            #"ANTHROPIC_API_KEY="$api_key""#,
             #"command ccr "$@""#
         ]
         return required.allSatisfy { content.contains($0) }
@@ -159,9 +159,10 @@ class MCPInstaller: ObservableObject {
         #"  if [[ "$1" == "code" ]]; then"# + "\n" +
         "    shift\n" +
         #"    local session="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}""# + "\n" +
+        #"    local api_key="${ANTHROPIC_API_KEY:-${MY_ANTHROPIC_API_KEY:-any-value}}""# + "\n" +
         #"    CCR_SESSION="$session" \"# + "\n" +
         #"    ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \"# + "\n" +
-        #"    ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \"# + "\n" +
+        #"    ANTHROPIC_API_KEY="$api_key" \"# + "\n" +
         #"    claude "$@""# + "\n" +
         "  else\n" +
         #"    command ccr "$@""# + "\n" +

@@ -238,9 +238,10 @@ struct IntegrationsTab: View {
           if [[ "$1" == "code" ]]; then
             shift
             local session="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}"
+            local api_key="${ANTHROPIC_API_KEY:-${MY_ANTHROPIC_API_KEY:-any-value}}"
             CCR_SESSION="$session" \\
             ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \\
-            ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \\
+            ANTHROPIC_API_KEY="$api_key" \\
             claude "$@"
           else
             command ccr "$@"
