@@ -22,6 +22,7 @@ struct CCRMenuBarApp: App {
             SpendLimitNotificationService.requestAuthorization()
             proxy.start()
             installer.installAll()
+            Self.promptForShellConfigIfNeeded(installer)
             if let providers = ConfigManager.shared.config?.Providers {
                 PresetManager.shared.syncToCCRPresets(providers: providers)
             }
@@ -44,6 +45,18 @@ struct CCRMenuBarApp: App {
                         openWindow(id: "settings")
                         NSApp.activate(ignoringOtherApps: true)
                     }
+                },
+                openProjectUsage: {
+                    if let w = NSApp.windows.first(where: { $0.title == "Project Usage" }) {
+                        if w.isMiniaturized {
+                            w.deminiaturize(nil)
+                        }
+                        w.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    } else {
+                        openWindow(id: "project-usage")
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
                 }
             )
             .onAppear { updateMenuBarIcon() }
@@ -59,6 +72,13 @@ struct CCRMenuBarApp: App {
             )
         }
         .defaultSize(width: 760, height: 600)
+
+        Window("Project Usage", id: "project-usage") {
+            ProjectUsageDetailView(projects: tokenUsageService.projectBreakdown) {
+                tokenUsageService.refresh()
+            }
+        }
+        .defaultSize(width: 560, height: 420)
     }
 
     private func updateMenuBarIcon() {
@@ -91,5 +111,25 @@ struct CCRMenuBarApp: App {
             }
         }
         return nil
+    }
+
+    private static func promptForShellConfigIfNeeded(_ installer: MCPInstaller) {
+        guard installer.needsShellConfigInstall() else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Claude Code shell environment is not configured"
+        alert.informativeText = """
+        CCR Menu Bar needs CCR_SESSION, ANTHROPIC_BASE_URL, and ANTHROPIC_API_KEY in \(installer.shellRCDisplayPath) so Claude Code routes through the local proxy.
+
+        Add or update the CCR block now?
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Add / Update")
+        alert.addButton(withTitle: "Not Now")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            installer.installShellConfig()
+            installer.checkInstallation()
+        }
     }
 }

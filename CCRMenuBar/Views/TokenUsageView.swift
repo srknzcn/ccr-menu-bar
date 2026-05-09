@@ -3,6 +3,7 @@ import SwiftUI
 
 struct TokenUsageView: View {
     @ObservedObject var usageService: TokenUsageService
+    let openProjectUsage: () -> Void
     @State private var selectedUsageRange: UsageChartRange = .day
     @State private var selectedGrouping: UsageGrouping = .model
 
@@ -11,6 +12,9 @@ struct TokenUsageView: View {
             return visibleModelBreakdown.reduce(into: TokenStats()) { result, usage in
                 result.inputTokens += usage.stats.inputTokens
                 result.outputTokens += usage.stats.outputTokens
+                result.providerPromptTokens += usage.stats.providerPromptTokens
+                result.providerCacheReadTokens += usage.stats.providerCacheReadTokens
+                result.providerCacheCreationTokens += usage.stats.providerCacheCreationTokens
                 result.requestCount += usage.stats.requestCount
             }
         }
@@ -62,9 +66,17 @@ struct TokenUsageView: View {
         VStack(spacing: 8) {
             // Summary pills
             HStack(spacing: 6) {
-                TokenPill(label: "IN", value: displayStats.formattedInput, color: .blue)
+                TokenPill(label: "IN", value: displayStats.formattedInput, color: .blue) {
+                    openProjectUsage()
+                }
                     .frame(maxWidth: .infinity)
-                TokenPill(label: "OUT", value: "~\(displayStats.formattedOutput)", color: .green)
+                TokenPill(label: "OUT", value: "~\(displayStats.formattedOutput)", color: .green) {
+                    openProjectUsage()
+                }
+                    .frame(maxWidth: .infinity)
+                TokenPill(label: "AVG", value: displayStats.formattedAverageProviderPrompt, color: .purple) {
+                    openProjectUsage()
+                }
                     .frame(maxWidth: .infinity)
                 if let displayCostUSD {
                     TokenPill(label: "USD", value: formattedCost(displayCostUSD), color: .yellow)
@@ -273,6 +285,9 @@ struct TokenUsageView: View {
             var entry = models[key] ?? (sample.provider, sample.model, TokenStats())
             entry.stats.inputTokens += sample.stats.inputTokens
             entry.stats.outputTokens += sample.stats.outputTokens
+            entry.stats.providerPromptTokens += sample.stats.providerPromptTokens
+            entry.stats.providerCacheReadTokens += sample.stats.providerCacheReadTokens
+            entry.stats.providerCacheCreationTokens += sample.stats.providerCacheCreationTokens
             entry.stats.requestCount += sample.stats.requestCount
             models[key] = entry
         }
@@ -391,6 +406,120 @@ struct ProviderCostUsage: Identifiable {
     var id: String { provider }
 }
 
+struct ProjectUsageDetailView: View {
+    let projects: [ProjectUsage]
+    let refresh: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.badge.gearshape")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.blue)
+
+                Text("Project Usage")
+                    .font(.system(size: 15, weight: .bold))
+
+                Spacer()
+
+                Button {
+                    refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh")
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help("Close")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            if projects.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.secondary)
+                    Text("No project usage yet")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(projects) { project in
+                            ProjectUsageRow(project: project)
+                            Divider()
+                                .padding(.leading, 14)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: 640, height: 420)
+    }
+}
+
+private struct ProjectUsageRow: View {
+    let project: ProjectUsage
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: project.isGitRepository ? "arrow.triangle.branch" : "folder")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(project.isGitRepository ? .green : .secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(.system(size: 13, weight: .bold))
+                    .lineLimit(1)
+
+                Text(project.gitRoot ?? project.path ?? "Unknown path")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            metric(label: "AVG IN", value: project.stats.formattedAverageInput, color: .blue)
+            metric(label: "AVG OUT", value: "~\(project.stats.formattedAverageOutput)", color: .green)
+            metric(label: "AVG", value: project.stats.formattedAverageProviderPrompt, color: .purple)
+            metric(label: "REQ", value: "\(project.stats.requestCount)", color: .gray)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func metric(label: String, value: String, color: Color) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(label)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(color.opacity(0.75))
+            Text(value)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(width: 54, alignment: .trailing)
+    }
+}
+
 enum UsageGrouping: String, CaseIterable, Identifiable {
     case model
     case provider
@@ -437,9 +566,10 @@ struct TokenPill: View {
     let label: String
     let value: String
     let color: Color
+    var action: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 4) {
+        let content = HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(color.opacity(0.7))
@@ -448,9 +578,20 @@ struct TokenPill: View {
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.primary)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity)
         .background(color.opacity(0.08), in: Capsule())
+        .contentShape(Capsule())
+
+        if let action {
+            Button(action: action) {
+                content
+            }
+            .buttonStyle(.plain)
+            .help("Open project usage")
+        } else {
+            content
+        }
     }
 }

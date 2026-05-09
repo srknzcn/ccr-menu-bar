@@ -34,6 +34,28 @@ final class ProxyServiceTests: XCTestCase {
         XCTAssertNotNil(object["messages"])
     }
 
+    func testSanitizedJSONBodyForCCRAddsAnthropicPromptCacheControlToStableSystemPrefix() throws {
+        let largeSystem = String(repeating: "stable instructions ", count: 220)
+        let input = #"{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"\#(largeSystem)"}],"messages":[{"role":"user","content":"hi"}]}"#
+        let output = ProxyService.sanitizedJSONBodyForCCR(Data(input.utf8))
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(output)) as? [String: Any])
+        let system = try XCTUnwrap(object["system"] as? [[String: Any]])
+        let cacheControl = try XCTUnwrap(system.last?["cache_control"] as? [String: Any])
+        XCTAssertEqual(cacheControl["type"] as? String, "ephemeral")
+    }
+
+    func testSanitizedJSONBodyForCCRAddsAnthropicPromptCacheControlToToolsWhenNoSystemExists() throws {
+        let description = String(repeating: "tool schema ", count: 360)
+        let input = #"{"model":"claude-sonnet-4-6","tools":[{"name":"Read","description":"\#(description)","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hi"}]}"#
+        let output = ProxyService.sanitizedJSONBodyForCCR(Data(input.utf8))
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(output)) as? [String: Any])
+        let tools = try XCTUnwrap(object["tools"] as? [[String: Any]])
+        let cacheControl = try XCTUnwrap(tools.last?["cache_control"] as? [String: Any])
+        XCTAssertEqual(cacheControl["type"] as? String, "ephemeral")
+    }
+
     func testSanitizedJSONBodyForCCRUsesAdaptiveThinkingForOpus47() throws {
         let input = #"{"model":"claude-sonnet-4-6","thinking":{"type":"enabled","budget_tokens":12000},"anthropic_beta":["interleaved-thinking-2025-05-14","claude-code-20250219"],"messages":[{"role":"user","content":"hi"}]}"#
         let output = ProxyService.sanitizedJSONBodyForCCR(Data(input.utf8), useAdaptiveThinking: true)
@@ -70,7 +92,7 @@ final class ProxyServiceTests: XCTestCase {
     }
 
     func testSanitizedJSONBodyForCCRSanitizesOpenAIProviderFields() throws {
-        let input = #"{"model":"claude-sonnet-4-6","stream":true,"max_tokens":1024,"metadata":{"source":"claude-code"},"system":[{"type":"text","text":"You are concise."}],"context_management":{"edits":true},"output_config":{"effort":"high"},"thinking":{"type":"enabled","budget_tokens":8000},"anthropic_beta":["claude-code-20250219"],"tools":[{"name":"Read","description":"Read file","input_schema":{"type":"object"}}],"tool_choice":{"type":"tool","name":"Read"},"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":"I will read."},{"type":"tool_use","id":"call_123","name":"Read","input":{"file_path":"/tmp/a.txt"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_123","content":"ok"},{"type":"text","text":"continue"}]}]}"#
+        let input = #"{"model":"claude-sonnet-4-6","stream":true,"max_tokens":1024,"metadata":{"source":"claude-code"},"system":[{"type":"text","text":"You are concise."}],"cache_control":{"type":"ephemeral"},"context_management":{"edits":true},"output_config":{"effort":"high"},"thinking":{"type":"enabled","budget_tokens":8000},"anthropic_beta":["claude-code-20250219"],"tools":[{"name":"Read","description":"Read file","input_schema":{"type":"object"}}],"tool_choice":{"type":"tool","name":"Read"},"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":"I will read."},{"type":"tool_use","id":"call_123","name":"Read","input":{"file_path":"/tmp/a.txt"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_123","content":"ok"},{"type":"text","text":"continue"}]}]}"#
         let output = ProxyService.sanitizedJSONBodyForCCR(
             Data(input.utf8),
             sanitizeForOpenAIProvider: true,
@@ -83,6 +105,7 @@ final class ProxyServiceTests: XCTestCase {
         XCTAssertNil(object["thinking"])
         XCTAssertNil(object["anthropic_beta"])
         XCTAssertNil(object["metadata"])
+        XCTAssertNil(object["cache_control"])
         XCTAssertNil(object["system"])
         XCTAssertEqual(object["model"] as? String, "gpt-5.5")
         XCTAssertNil(object["max_tokens"])

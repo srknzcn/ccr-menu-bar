@@ -22,6 +22,14 @@ struct ProxyHTTPRequest {
     }
 }
 
+struct ProjectUsageContext: Sendable {
+    let cwd: String
+    let projectName: String
+    let gitRoot: String?
+    let isGitRepository: Bool
+    let promptCacheKey: String?
+}
+
 struct ProxyUsageLogContext: Sendable {
     let requestId: String
     let startedAt: Date
@@ -36,6 +44,11 @@ struct ProxyUsageLogContext: Sendable {
     let model: String?
     let requestModel: String?
     let inputTokens: Int
+    let providerPromptTokens: Int
+    let providerPromptCacheEligibleTokens: Int
+    let promptCacheKey: String?
+    let promptCacheCandidateTokens: Int
+    let project: ProjectUsageContext?
 }
 
 // MARK: - ProxyService
@@ -49,6 +62,7 @@ class ProxyService: ObservableObject {
 
     // Per-session preset map: session token → filesystem-safe preset name
     private var sessionPresets: [String: String] = [:]
+    private var sessionProjectContexts: [String: ProjectUsageContext] = [:]
 
     private nonisolated(unsafe) var listener: NWListener?
     private let internalQueue = DispatchQueue(label: "com.ccr.proxy", qos: .userInitiated)
@@ -237,6 +251,9 @@ class ProxyService: ObservableObject {
         case ("POST", "/_api/switch"):
             responseData = handleSwitch(request)
 
+        case ("POST", "/_api/session-context"):
+            responseData = handleSessionContext(request)
+
         case ("OPTIONS", _):
             // CORS preflight
             let headers = [
@@ -362,6 +379,37 @@ class ProxyService: ObservableObject {
         return buildJSONResponse(status: 404, json: #"{"ok":false,"error":"Preset '\#(Self.escapeJSON(presetName))' not found"}"#)
     }
 
+    private nonisolated func handleSessionContext(_ request: ProxyHTTPRequest) -> Data {
+        guard let body = request.body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let rawSession = json["session"] as? String,
+              let cwd = json["cwd"] as? String else {
+            return buildJSONResponse(status: 400, json: #"{"ok":false,"error":"Missing session or cwd"}"#)
+        }
+
+        let session = rawSession.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCwd = cwd.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !session.isEmpty, !trimmedCwd.isEmpty else {
+            return buildJSONResponse(status: 400, json: #"{"ok":false,"error":"Missing session or cwd"}"#)
+        }
+
+        let projectName = (json["project"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let gitRoot = (json["git_root"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let promptCacheKey = (json["prompt_cache_key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let context = ProjectUsageContext(
+            cwd: trimmedCwd,
+            projectName: projectName?.isEmpty == false ? projectName! : URL(fileURLWithPath: trimmedCwd).lastPathComponent,
+            gitRoot: gitRoot?.isEmpty == false ? gitRoot : nil,
+            isGitRepository: json["is_git_repo"] as? Bool ?? false,
+            promptCacheKey: promptCacheKey?.isEmpty == false ? promptCacheKey : nil
+        )
+
+        DispatchQueue.main.sync {
+            self.sessionProjectContexts[session] = context
+        }
+        return buildJSONResponse(status: 200, json: #"{"ok":true}"#)
+    }
+
     // MARK: - Proxy Forwarding
 
     private nonisolated func forwardToCCR(_ request: ProxyHTTPRequest, clientConnection: NWConnection) {
@@ -413,6 +461,7 @@ class ProxyService: ObservableObject {
         let selectedRoute = selectedRouteInfo.value
         let usesOpus47 = selectedRoute?.lowercased().contains("anthropic,claude-opus-4-7") == true
         let usesOpenAIProvider = selectedRoute.map(Self.routeUsesOpenAIProvider) ?? false
+        let supportsAnthropicPromptCaching = selectedRoute.map(Self.routeSupportsAnthropicPromptCaching) ?? false
         let disablesThinking = selectedRoute.map(Self.routeDisablesThinking) ?? false
         let forcedModel = selectedRoute.map(Self.requestModelForRoute)
         let sanitizedBody = Self.sanitizedJSONBodyForCCR(
@@ -420,7 +469,8 @@ class ProxyService: ObservableObject {
             useAdaptiveThinking: usesOpus47,
             sanitizeForOpenAIProvider: usesOpenAIProvider,
             disableThinking: disablesThinking,
-            forceModel: forcedModel
+            forceModel: forcedModel,
+            enableAnthropicPromptCaching: supportsAnthropicPromptCaching
         )
         let outboundModel = Self.modelFromJSONBody(sanitizedBody) ?? "nil"
         Self.appendDebug("route=\(selectedRouteInfo.name) selected=\(selectedRoute ?? "nil") outboundModel=\(outboundModel)")
@@ -453,6 +503,8 @@ class ProxyService: ObservableObject {
             urlRequest.setValue("\(sanitizedBody.count)", forHTTPHeaderField: "Content-Length")
         }
         urlRequest.setValue("127.0.0.1:\(ccrPort)", forHTTPHeaderField: "Host")
+        let providerPromptTokens = Self.estimatedInputTokens(from: sanitizedBody)
+        let providerPromptCacheEligibleTokens = Self.promptCacheEligibleTokens(from: sanitizedBody)
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 600
@@ -463,6 +515,21 @@ class ProxyService: ObservableObject {
         } ?? "default"
         let routeParts = selectedRoute.map(Self.providerAndModel(from:)) ?? (nil, requestModel == "nil" ? nil : requestModel)
         let actualModel = outboundModel == "nil" ? routeParts.1 : outboundModel
+        let projectContext = sessionToken.flatMap { token in
+            DispatchQueue.main.sync { self.sessionProjectContexts[token] }
+        }
+        let promptCacheKey = projectContext?.promptCacheKey
+        if let sessionToken, let projectContext, promptCacheKey != nil {
+            DispatchQueue.main.sync {
+                self.sessionProjectContexts[sessionToken] = ProjectUsageContext(
+                    cwd: projectContext.cwd,
+                    projectName: projectContext.projectName,
+                    gitRoot: projectContext.gitRoot,
+                    isGitRepository: projectContext.isGitRepository,
+                    promptCacheKey: nil
+                )
+            }
+        }
         let usageContext = ProxyUsageLogContext(
             requestId: UUID().uuidString,
             startedAt: Date(),
@@ -476,7 +543,12 @@ class ProxyService: ObservableObject {
             provider: routeParts.0,
             model: actualModel,
             requestModel: requestModel == "nil" ? nil : requestModel,
-            inputTokens: usageInputTokens
+            inputTokens: usageInputTokens,
+            providerPromptTokens: providerPromptTokens,
+            providerPromptCacheEligibleTokens: providerPromptCacheEligibleTokens,
+            promptCacheKey: promptCacheKey,
+            promptCacheCandidateTokens: promptCacheKey == nil ? 0 : providerPromptTokens,
+            project: projectContext
         )
         LiveTokenGenerationMeter.begin(context: usageContext)
 
@@ -572,6 +644,10 @@ class ProxyService: ObservableObject {
         route.split(separator: ",", maxSplits: 1).first?.lowercased() == "openai"
     }
 
+    private nonisolated static func routeSupportsAnthropicPromptCaching(_ route: String) -> Bool {
+        route.split(separator: ",", maxSplits: 1).first?.lowercased() == "anthropic"
+    }
+
     private nonisolated static func routeDisablesThinking(_ route: String) -> Bool {
         let (providerName, modelName) = providerAndModel(from: route)
         guard let providerName, let modelName else { return false }
@@ -665,7 +741,8 @@ class ProxyService: ObservableObject {
         useAdaptiveThinking: Bool = false,
         sanitizeForOpenAIProvider: Bool = false,
         disableThinking: Bool = false,
-        forceModel: String? = nil
+        forceModel: String? = nil,
+        enableAnthropicPromptCaching: Bool = true
     ) -> Data? {
         guard let body,
               var json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
@@ -733,8 +810,12 @@ class ProxyService: ObservableObject {
             }
         }
 
+        if enableAnthropicPromptCaching, !sanitizeForOpenAIProvider {
+            changed = applyAnthropicPromptCacheControl(to: &json) || changed
+        }
+
         if sanitizeForOpenAIProvider {
-            for key in ["context_management", "output_config", "thinking", "anthropic_beta", "metadata"] {
+            for key in ["context_management", "output_config", "thinking", "anthropic_beta", "metadata", "cache_control"] {
                 if json[key] != nil {
                     json.removeValue(forKey: key)
                     changed = true
@@ -788,6 +869,63 @@ class ProxyService: ObservableObject {
             return body
         }
         return sanitized
+    }
+
+    private nonisolated static func applyAnthropicPromptCacheControl(to json: inout [String: Any]) -> Bool {
+        guard promptCacheEligibleTokens(in: json) >= 1_024 else { return false }
+        let cacheControl: [String: Any] = ["type": "ephemeral"]
+
+        if var systemBlocks = normalizedSystemBlocks(from: json["system"]) {
+            guard let index = systemBlocks.lastIndex(where: { block in
+                block["cache_control"] == nil && (block["type"] as? String ?? "text") != "thinking"
+            }) else {
+                return false
+            }
+            systemBlocks[index]["cache_control"] = cacheControl
+            json["system"] = systemBlocks
+            return true
+        }
+
+        if var tools = json["tools"] as? [[String: Any]],
+           let index = tools.lastIndex(where: { $0["cache_control"] == nil }) {
+            tools[index]["cache_control"] = cacheControl
+            json["tools"] = tools
+            return true
+        }
+
+        return false
+    }
+
+    private nonisolated static func normalizedSystemBlocks(from value: Any?) -> [[String: Any]]? {
+        if let text = value as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return [["type": "text", "text": text]]
+        }
+        if let blocks = value as? [[String: Any]], !blocks.isEmpty {
+            return blocks
+        }
+        return nil
+    }
+
+    private nonisolated static func promptCacheEligibleTokens(from body: Data?) -> Int {
+        guard let body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return 0
+        }
+        return promptCacheEligibleTokens(in: json)
+    }
+
+    private nonisolated static func promptCacheEligibleTokens(in json: [String: Any]) -> Int {
+        var size = 0
+        if let tools = json["tools"],
+           let data = try? JSONSerialization.data(withJSONObject: tools, options: [.sortedKeys]) {
+            size += data.count
+        }
+        if let system = json["system"] as? [[String: Any]] {
+            size += estimatedContentSize(system)
+        } else if let system = json["system"] as? String {
+            size += system.count
+        }
+        return max(size / 3, 0)
     }
 
     nonisolated static func stripTerminalControlSequences(from value: String) -> String {
@@ -1202,6 +1340,8 @@ class ProxyService: ObservableObject {
         context: ProxyUsageLogContext,
         statusCode: Int,
         outputTokens: Int,
+        providerCacheReadTokens: Int = 0,
+        providerCacheCreationTokens: Int = 0,
         error: String? = nil,
         responseBodyBytes: Int? = nil,
         upstreamInputTokens: Int? = nil,
@@ -1213,6 +1353,9 @@ class ProxyService: ObservableObject {
             completedAt: completedAt,
             statusCode: statusCode,
             outputTokens: outputTokens,
+            providerPromptTokens: context.providerPromptTokens,
+            providerCacheReadTokens: providerCacheReadTokens,
+            providerCacheCreationTokens: providerCacheCreationTokens,
             error: error,
             responseBodyBytes: responseBodyBytes,
             upstreamInputTokens: upstreamInputTokens,
@@ -1230,6 +1373,8 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
     var session: URLSession?
     private var statusCode = 502
     private var liveMeterBuffer = ""
+    private var providerCacheReadTokens = 0
+    private var providerCacheCreationTokens = 0
 
     init(clientConnection: NWConnection, usageContext: ProxyUsageLogContext) {
         self.clientConnection = clientConnection
@@ -1279,6 +1424,8 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
             context: usageContext,
             statusCode: error == nil ? statusCode : 502,
             outputTokens: estimatedOutput,
+            providerCacheReadTokens: providerCacheReadTokens,
+            providerCacheCreationTokens: providerCacheCreationTokens,
             error: error?.localizedDescription
         )
         LiveTokenGenerationMeter.finish(
@@ -1318,14 +1465,39 @@ private class StreamingProxyDelegate: NSObject, URLSessionDataDelegate {
         while let range = liveMeterBuffer.range(of: "\n\n") {
             let event = String(liveMeterBuffer[..<range.upperBound])
             liveMeterBuffer = String(liveMeterBuffer[range.upperBound...])
+            ingestProviderUsage(event)
             LiveTokenGenerationMeter.ingestChunk(requestId: usageContext.requestId, data: Data(event.utf8))
         }
     }
 
     private func flushLiveMeterBuffer() {
         guard !liveMeterBuffer.isEmpty else { return }
+        ingestProviderUsage(liveMeterBuffer)
         LiveTokenGenerationMeter.ingestChunk(requestId: usageContext.requestId, data: Data(liveMeterBuffer.utf8))
         liveMeterBuffer = ""
+    }
+
+    private func ingestProviderUsage(_ event: String) {
+        for line in event.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("data:") else { continue }
+            let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            guard let data = payload.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+
+            let usage = (json["message"] as? [String: Any])?["usage"] as? [String: Any]
+                ?? json["usage"] as? [String: Any]
+            providerCacheReadTokens = max(
+                providerCacheReadTokens,
+                usage?["cache_read_input_tokens"] as? Int ?? 0
+            )
+            providerCacheCreationTokens = max(
+                providerCacheCreationTokens,
+                usage?["cache_creation_input_tokens"] as? Int ?? 0
+            )
+        }
     }
 }
 
@@ -1401,6 +1573,7 @@ private class OpenAIToAnthropicProxyDelegate: NSObject, URLSessionDataDelegate {
             context: usageContext,
             statusCode: status,
             outputTokens: outputTokens,
+            providerCacheReadTokens: usage.cached ?? 0,
             responseBodyBytes: body.count,
             upstreamInputTokens: usage.input,
             upstreamOutputTokens: usage.output
@@ -1429,14 +1602,16 @@ private class OpenAIToAnthropicProxyDelegate: NSObject, URLSessionDataDelegate {
         })
     }
 
-    private static func openAIUsage(from body: Data) -> (input: Int?, output: Int?) {
+    private static func openAIUsage(from body: Data) -> (input: Int?, output: Int?, cached: Int?) {
         guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
               let usage = json["usage"] as? [String: Any] else {
-            return (nil, nil)
+            return (nil, nil, nil)
         }
+        let details = usage["prompt_tokens_details"] as? [String: Any]
         return (
             usage["prompt_tokens"] as? Int,
-            usage["completion_tokens"] as? Int
+            usage["completion_tokens"] as? Int,
+            details?["cached_tokens"] as? Int
         )
     }
 }

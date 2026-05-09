@@ -2,13 +2,17 @@
 import Foundation
 import Combine
 
-struct TokenStats {
+struct TokenStats: Equatable {
     var inputTokens: Int = 0
     var outputTokens: Int = 0
     var requestCount: Int = 0
+    var providerPromptTokens: Int = 0
+    var cacheSavingsTokens: Int = 0
+    var providerCacheReadTokens: Int = 0
+    var providerCacheCreationTokens: Int = 0
 }
 
-struct ModelUsage: Identifiable {
+struct ModelUsage: Equatable, Identifiable {
     let provider: String?
     let model: String
     var stats: TokenStats
@@ -16,7 +20,7 @@ struct ModelUsage: Identifiable {
     var id: String { "\(provider ?? "Unknown")/\(model)" }
 }
 
-struct ProviderUsage: Identifiable {
+struct ProviderUsage: Equatable, Identifiable {
     let provider: String
     var models: [ModelUsage]
     var totalStats: TokenStats
@@ -24,22 +28,34 @@ struct ProviderUsage: Identifiable {
     var id: String { provider }
 }
 
-struct ModeUsage: Identifiable {
+struct ModeUsage: Equatable, Identifiable {
     let mode: String
     var stats: TokenStats
     var id: String { mode }
 }
 
-struct ModelUsageSample: Identifiable {
+struct ModelUsageSample: Equatable, Identifiable {
     let timestamp: Date
     let provider: String
     let model: String
     var stats: TokenStats
+    let projectName: String?
+    let projectPath: String?
 
-    var id: String { "\(timestamp.timeIntervalSince1970)-\(provider)-\(model)" }
+    var id: String { "\(timestamp.timeIntervalSince1970)-\(provider)-\(model)-\(projectPath ?? "unknown")" }
 }
 
-struct LiveModelTokenGeneration: Identifiable {
+struct ProjectUsage: Equatable, Identifiable {
+    let name: String
+    let path: String?
+    let gitRoot: String?
+    let isGitRepository: Bool
+    var stats: TokenStats
+
+    var id: String { path ?? name }
+}
+
+struct LiveModelTokenGeneration: Equatable, Identifiable {
     let provider: String?
     let model: String
     var outputTokens: Int
@@ -49,7 +65,7 @@ struct LiveModelTokenGeneration: Identifiable {
     var id: String { "\(provider ?? "Unknown")/\(model)" }
 }
 
-struct LiveTokenGenerationSnapshot {
+struct LiveTokenGenerationSnapshot: Equatable {
     var isActive = false
     var models: [LiveModelTokenGeneration] = []
     var updatedAt: Date?
@@ -363,6 +379,7 @@ class TokenUsageService: ObservableObject {
     @Published var providerStats: [ProviderUsage] = []
     @Published var modeStats: [ModeUsage] = []
     @Published var modelUsageSamples: [ModelUsageSample] = []
+    @Published var projectBreakdown: [ProjectUsage] = []
     @Published var todayCostUSD: Double?
     @Published var allTimeCostUSD: Double?
     @Published var todayProviderCostsUSD: [String: Double] = [:]
@@ -392,7 +409,7 @@ class TokenUsageService: ObservableObject {
         logsPath = "\(home)/.claude-code-router/logs"
         LiveTokenGenerationMeter.shared.$snapshot
             .sink { [weak self] snapshot in
-                self?.liveGeneration = snapshot
+                self?.setLiveGeneration(snapshot)
             }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: UsageLogStore.didAppendNotification)
@@ -429,9 +446,10 @@ class TokenUsageService: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             MainActor.assumeIsolated {
-                self.liveGeneration = LiveTokenGenerationMeter.shared.snapshot.isVisible
+                let snapshot = LiveTokenGenerationMeter.shared.snapshot.isVisible
                     ? LiveTokenGenerationMeter.shared.snapshot
                     : (self.snapshotFromStatusFile() ?? LiveTokenGenerationMeter.shared.snapshot)
+                self.setLiveGeneration(snapshot)
                 if Date().timeIntervalSince(self.lastPeriodicUsageRefresh) >= self.usageFallbackRefreshInterval {
                     self.refreshUsageNow()
                     self.refreshPricingIfNeeded(force: false)
@@ -449,8 +467,13 @@ class TokenUsageService: ObservableObject {
     private func refreshLiveGenerationFromStatusFile() {
         if !LiveTokenGenerationMeter.shared.snapshot.isVisible,
            let statusSnapshot = snapshotFromStatusFile() {
-            liveGeneration = statusSnapshot
+            setLiveGeneration(statusSnapshot)
         }
+    }
+
+    private func setLiveGeneration(_ snapshot: LiveTokenGenerationSnapshot) {
+        guard liveGeneration != snapshot else { return }
+        liveGeneration = snapshot
     }
 
     private func snapshotFromStatusFile() -> LiveTokenGenerationSnapshot? {
@@ -515,8 +538,17 @@ class TokenUsageService: ObservableObject {
             var mode: String = "default"
             var inputTokens: Int = 0
             var outputTokens: Int = 0
+            var providerPromptTokens: Int = 0
+            var providerCacheReadTokens: Int = 0
+            var providerCacheCreationTokens: Int = 0
             var providerName: String?
             var providerUrl: String?
+            var projectName: String?
+            var projectPath: String?
+            var gitRoot: String?
+            var isGitRepository: Bool = false
+            var promptCacheKey: String?
+            var promptCacheCandidateTokens: Int = 0
         }
         var requests: [String: ReqInfo] = [:]
 
@@ -555,21 +587,24 @@ class TokenUsageService: ObservableObject {
                     let mode = Self.detectMode(in: body, inputTokens: input, longContextThreshold: router?.longContextThreshold)
 
                     allStats.inputTokens += input
+                    allStats.providerPromptTokens += input
                     allStats.requestCount += 1
                     if isToday {
                         dayStats.inputTokens += input
+                        dayStats.providerPromptTokens += input
                         dayStats.requestCount += 1
                     }
 
                     if let rid = reqId {
                        var info = requests[rid] ?? ReqInfo(model: model, isToday: isToday, day: requestDay, timestamp: entryDate)
                        info.inputTokens = input
+                       info.providerPromptTokens = input
                        info.timestamp = entryDate
                        info.mode = mode
                        // Eğer 'final request' daha önce geldiyse model adını güncelle
                        if info.model == "Unknown" {
                            // Yeniden oluştur çünkü struct immutable
-                           requests[rid] = ReqInfo(model: model, isToday: isToday, day: info.day, timestamp: info.timestamp, mode: mode, inputTokens: input, outputTokens: info.outputTokens, providerName: info.providerName, providerUrl: info.providerUrl)
+                           requests[rid] = ReqInfo(model: model, isToday: isToday, day: info.day, timestamp: info.timestamp, mode: mode, inputTokens: input, outputTokens: info.outputTokens, providerPromptTokens: input, providerName: info.providerName, providerUrl: info.providerUrl)
                        } else {
                            requests[rid] = info
                        }
@@ -602,10 +637,16 @@ class TokenUsageService: ObservableObject {
                 let isToday = Calendar.autoupdatingCurrent.isDateInToday(event.startedAt)
                 allStats.inputTokens += event.inputTokens
                 allStats.outputTokens += event.outputTokens
+                allStats.providerPromptTokens += event.providerPromptTokens
+                allStats.providerCacheReadTokens += event.providerCacheReadTokens
+                allStats.providerCacheCreationTokens += event.providerCacheCreationTokens
                 allStats.requestCount += 1
                 if isToday {
                     dayStats.inputTokens += event.inputTokens
                     dayStats.outputTokens += event.outputTokens
+                    dayStats.providerPromptTokens += event.providerPromptTokens
+                    dayStats.providerCacheReadTokens += event.providerCacheReadTokens
+                    dayStats.providerCacheCreationTokens += event.providerCacheCreationTokens
                     dayStats.requestCount += 1
                 }
 
@@ -617,19 +658,34 @@ class TokenUsageService: ObservableObject {
                     mode: event.route,
                     inputTokens: event.inputTokens,
                     outputTokens: event.outputTokens,
+                    providerPromptTokens: event.providerPromptTokens,
+                    providerCacheReadTokens: event.providerCacheReadTokens,
+                    providerCacheCreationTokens: event.providerCacheCreationTokens,
                     providerName: event.provider ?? "Unknown",
-                    providerUrl: nil
+                    providerUrl: nil,
+                    projectName: event.projectName,
+                    projectPath: event.projectPath,
+                    gitRoot: event.gitRoot,
+                    isGitRepository: event.isGitRepository,
+                    promptCacheKey: event.promptCacheKey,
+                    promptCacheCandidateTokens: event.promptCacheCandidateTokens
                 )
             }
         }
 
-        allTimeStats = allStats
-        todayStats = dayStats
+        if allTimeStats != allStats {
+            allTimeStats = allStats
+        }
+        if todayStats != dayStats {
+            todayStats = dayStats
+        }
 
         // Aggregate by Provider and Model
         let showTodayOnly = dayStats.requestCount > 0
         var providerData: [String: [String: TokenStats]] = [:] // provider -> (model -> stats)
         var modeData: [String: TokenStats] = [:]
+        var projectData: [String: ProjectUsage] = [:]
+        var seenCacheKeysByProject: [String: Set<String>] = [:]
         var usageSamples: [ModelUsageSample] = []
         var allCostUSD: Double?
         var dayCostUSD: Double?
@@ -665,7 +721,14 @@ class TokenUsageService: ObservableObject {
                 }
             }
 
-            let requestStats = TokenStats(inputTokens: info.inputTokens, outputTokens: info.outputTokens, requestCount: 1)
+            let requestStats = TokenStats(
+                inputTokens: info.inputTokens,
+                outputTokens: info.outputTokens,
+                requestCount: 1,
+                providerPromptTokens: info.providerPromptTokens,
+                providerCacheReadTokens: info.providerCacheReadTokens,
+                providerCacheCreationTokens: info.providerCacheCreationTokens
+            )
             if let requestCost = costUSD(provider: pName, model: info.model, stats: requestStats) {
                 allCostUSD = (allCostUSD ?? 0) + requestCost
                 if info.isToday {
@@ -678,14 +741,49 @@ class TokenUsageService: ObservableObject {
                 timestamp: info.timestamp,
                 provider: pName,
                 model: info.model,
-                stats: requestStats
+                stats: requestStats,
+                projectName: info.projectName,
+                projectPath: info.projectPath
             ))
+
+            let projectName = info.projectName?.isEmpty == false ? info.projectName! : "Unknown Project"
+            let projectKey = info.projectPath?.isEmpty == false ? info.projectPath! : projectName
+            var cacheSavingsTokens = 0
+            if let cacheKey = info.promptCacheKey,
+               cacheKey.hasPrefix("prompt-v1:"),
+               info.promptCacheCandidateTokens > 0 {
+                var seenKeys = seenCacheKeysByProject[projectKey, default: []]
+                if seenKeys.contains(cacheKey) {
+                    cacheSavingsTokens = info.promptCacheCandidateTokens + info.outputTokens
+                } else {
+                    seenKeys.insert(cacheKey)
+                    seenCacheKeysByProject[projectKey] = seenKeys
+                }
+            }
+            var projectUsage = projectData[projectKey] ?? ProjectUsage(
+                name: projectName,
+                path: info.projectPath,
+                gitRoot: info.gitRoot,
+                isGitRepository: info.isGitRepository,
+                stats: TokenStats()
+            )
+            projectUsage.stats.inputTokens += info.inputTokens
+            projectUsage.stats.outputTokens += info.outputTokens
+            projectUsage.stats.providerPromptTokens += info.providerPromptTokens
+            projectUsage.stats.providerCacheReadTokens += info.providerCacheReadTokens
+            projectUsage.stats.providerCacheCreationTokens += info.providerCacheCreationTokens
+            projectUsage.stats.cacheSavingsTokens += cacheSavingsTokens
+            projectUsage.stats.requestCount += 1
+            projectData[projectKey] = projectUsage
 
             if showTodayOnly && !info.isToday { continue }
 
             var modeStats = modeData[info.mode, default: TokenStats()]
             modeStats.inputTokens += info.inputTokens
             modeStats.outputTokens += info.outputTokens
+            modeStats.providerPromptTokens += info.providerPromptTokens
+            modeStats.providerCacheReadTokens += info.providerCacheReadTokens
+            modeStats.providerCacheCreationTokens += info.providerCacheCreationTokens
             modeStats.requestCount += 1
             modeData[info.mode] = modeStats
 
@@ -694,13 +792,16 @@ class TokenUsageService: ObservableObject {
 
             modelStats.inputTokens += info.inputTokens
             modelStats.outputTokens += info.outputTokens
+            modelStats.providerPromptTokens += info.providerPromptTokens
+            modelStats.providerCacheReadTokens += info.providerCacheReadTokens
+            modelStats.providerCacheCreationTokens += info.providerCacheCreationTokens
             modelStats.requestCount += 1
 
             modelsInProvider[info.model] = modelStats
             providerData[pName] = modelsInProvider
         }
 
-        self.providerStats = providerData.map { pName, models in
+        let nextProviderStats = providerData.map { pName, models in
             let modelUsages = models.map {
                 ModelUsage(
                     provider: pName,
@@ -713,6 +814,9 @@ class TokenUsageService: ObservableObject {
             let total = modelUsages.reduce(into: TokenStats()) { res, m in
                 res.inputTokens += m.stats.inputTokens
                 res.outputTokens += m.stats.outputTokens
+                res.providerPromptTokens += m.stats.providerPromptTokens
+                res.providerCacheReadTokens += m.stats.providerCacheReadTokens
+                res.providerCacheCreationTokens += m.stats.providerCacheCreationTokens
                 res.requestCount += m.stats.requestCount
             }
             let costs = modelUsages.compactMap(\.costUSD)
@@ -720,25 +824,56 @@ class TokenUsageService: ObservableObject {
             return ProviderUsage(provider: pName, models: modelUsages, totalStats: total, totalCostUSD: totalCost)
         }.sorted { $0.totalStats.requestCount > $1.totalStats.requestCount }
 
-        self.modelBreakdown = self.providerStats.flatMap { $0.models }
+        let nextModelBreakdown = nextProviderStats.flatMap { $0.models }
             .sorted { $0.stats.requestCount > $1.stats.requestCount }
 
-        self.modeStats = modeData.map { ModeUsage(mode: $0.key, stats: $0.value) }
+        let nextModeStats = modeData.map { ModeUsage(mode: $0.key, stats: $0.value) }
             .sorted { Self.modeSortIndex($0.mode) < Self.modeSortIndex($1.mode) }
 
-        self.modelUsageSamples = usageSamples
+        let nextModelUsageSamples = usageSamples
             .sorted {
                 if $0.timestamp == $1.timestamp {
                     return "\($0.provider)/\($0.model)".localizedCaseInsensitiveCompare("\($1.provider)/\($1.model)") == .orderedAscending
                 }
                 return $0.timestamp < $1.timestamp
             }
-        self.allTimeCostUSD = pricing.isEmpty ? nil : allCostUSD
-        self.todayCostUSD = pricing.isEmpty ? nil : dayCostUSD
-        self.todayProviderCostsUSD = pricing.isEmpty ? [:] : todayProviderCostsUSD
+        let nextProjectBreakdown = projectData.values.sorted {
+            if $0.stats.requestCount != $1.stats.requestCount {
+                return $0.stats.requestCount > $1.stats.requestCount
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        let nextAllTimeCostUSD = pricing.isEmpty ? nil : allCostUSD
+        let nextTodayCostUSD = pricing.isEmpty ? nil : dayCostUSD
+        let nextTodayProviderCostsUSD = pricing.isEmpty ? [:] : todayProviderCostsUSD
+
+        if providerStats != nextProviderStats {
+            providerStats = nextProviderStats
+        }
+        if modelBreakdown != nextModelBreakdown {
+            modelBreakdown = nextModelBreakdown
+        }
+        if modeStats != nextModeStats {
+            modeStats = nextModeStats
+        }
+        if modelUsageSamples != nextModelUsageSamples {
+            modelUsageSamples = nextModelUsageSamples
+        }
+        if projectBreakdown != nextProjectBreakdown {
+            projectBreakdown = nextProjectBreakdown
+        }
+        if allTimeCostUSD != nextAllTimeCostUSD {
+            allTimeCostUSD = nextAllTimeCostUSD
+        }
+        if todayCostUSD != nextTodayCostUSD {
+            todayCostUSD = nextTodayCostUSD
+        }
+        if todayProviderCostsUSD != nextTodayProviderCostsUSD {
+            todayProviderCostsUSD = nextTodayProviderCostsUSD
+        }
         SpendLimitNotificationService.notifyExceededLimits(
             providers: providers,
-            todayCostsUSD: self.todayProviderCostsUSD
+            todayCostsUSD: todayProviderCostsUSD
         )
     }
 
@@ -922,6 +1057,20 @@ extension TokenStats {
     var formattedInput: String { formatTokenCount(inputTokens) }
     var formattedOutput: String { formatTokenCount(outputTokens) }
     var formattedTotal: String { formatTokenCount(inputTokens + outputTokens) }
+    var formattedAverageInput: String {
+        guard requestCount > 0 else { return "0" }
+        return formatTokenCount(Int((Double(inputTokens) / Double(requestCount)).rounded()))
+    }
+    var formattedAverageOutput: String {
+        guard requestCount > 0 else { return "0" }
+        return formatTokenCount(Int((Double(outputTokens) / Double(requestCount)).rounded()))
+    }
+    var formattedAverageProviderPrompt: String {
+        guard requestCount > 0 else { return "0" }
+        return formatTokenCount(Int((Double(providerPromptTokens) / Double(requestCount)).rounded()))
+    }
+    var formattedCacheSavings: String { formatTokenCount(cacheSavingsTokens) }
+    var formattedProviderCacheRead: String { formatTokenCount(providerCacheReadTokens) }
 
     private func formatTokenCount(_ count: Int) -> String {
         if count >= 1_000_000 {

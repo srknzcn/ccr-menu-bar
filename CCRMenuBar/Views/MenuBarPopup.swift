@@ -7,6 +7,7 @@ struct MenuBarPopup: View {
     @ObservedObject var presetManager: PresetManager
     @ObservedObject var proxyService: ProxyService
     let openSettings: () -> Void
+    let openProjectUsage: () -> Void
     @State private var showNewPresetAlert = false
     @State private var newPresetName = ""
 
@@ -41,7 +42,7 @@ struct MenuBarPopup: View {
                 // Token Usage
                 if tokenUsageService.allTimeStats.requestCount > 0 || tokenUsageService.liveGeneration.isVisible {
                     HStack(spacing: 6) {
-                        Text(tokenUsageService.todayStats.requestCount > 0 ? "TODAY'S USAGE" : "TOTAL USAGE")
+                        Text("TOTAL USAGE")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.tertiary)
                             .tracking(1)
@@ -53,7 +54,7 @@ struct MenuBarPopup: View {
                     .padding(.top, 12)
                     .padding(.bottom, 4)
 
-                    TokenUsageView(usageService: tokenUsageService)
+                    TokenUsageView(usageService: tokenUsageService, openProjectUsage: openProjectUsage)
                         .padding(.horizontal, 8)
                         .onAppear {
                             tokenUsageService.providers = configManager.config?.Providers ?? []

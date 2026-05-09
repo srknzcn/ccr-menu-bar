@@ -104,7 +104,7 @@ class MCPInstaller: ObservableObject {
             withIntermediateDirectories: true
         )
         try? newContent.write(to: shellRCURL, atomically: true, encoding: .utf8)
-        shellConfigured = true
+        shellConfigured = isShellConfigured()
     }
 
     func uninstallShellConfig() {
@@ -116,7 +116,20 @@ class MCPInstaller: ObservableObject {
 
     private func isShellConfigured() -> Bool {
         guard let content = try? String(contentsOf: shellRCURL, encoding: .utf8) else { return false }
-        return content.contains(Self.shellMarkerBegin)
+        return hasRequiredShellEnvironment(in: content)
+    }
+
+    func needsShellConfigInstall() -> Bool {
+        !isShellConfigured()
+    }
+
+    private func hasRequiredShellEnvironment(in content: String) -> Bool {
+        let required = [
+            "export CCR_SESSION=",
+            #"export ANTHROPIC_BASE_URL="http://localhost:3457/s/$CCR_SESSION""#,
+            #"export ANTHROPIC_API_KEY="any-value""#
+        ]
+        return required.allSatisfy { content.contains($0) }
     }
 
     /// Resolves the user's login shell RC file.
@@ -258,21 +271,15 @@ class MCPInstaller: ObservableObject {
 # ccm:<name>    → direct switch (case-insensitive)
 
 INPUT=$(cat)
-PROMPT=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))" 2>/dev/null <<< "$INPUT")
-
-[[ "$PROMPT" =~ ^ccm:(.*)$ ]] || exit 0
-
-ARG=$(printf '%s' "${BASH_REMATCH[1]}" | python3 -c "import re,sys; s=sys.stdin.read(); s=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', s); s=re.sub(r'\[[0-?]*[ -/]*m\]?$', '', s); print(s.strip())")
 BASE="http://127.0.0.1:3457"
-MSG=""
 DEBUG_LOG="$HOME/.claude-code-router/ccm-debug.log"
+PROMPT=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('prompt',''))" 2>/dev/null <<< "$INPUT")
+CWD=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null <<< "$INPUT")
 
 ccm_debug() {
     mkdir -p "$HOME/.claude-code-router" 2>/dev/null
     printf '[%s] hook %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$DEBUG_LOG" 2>/dev/null
 }
-
-ccm_debug "prompt=$PROMPT arg=$ARG CCR_SESSION=${CCR_SESSION:-nil} ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-nil}"
 
 ccr_session() {
     python3 - "$CCR_SESSION" << 'PYEOF'
@@ -284,6 +291,48 @@ if not session:
 print(session)
 PYEOF
 }
+
+track_project_context() {
+    local session cwd project git_root is_git_repo
+    session=$(ccr_session)
+    cwd="$CWD"
+    [ -n "$session" ] && [ -n "$cwd" ] || return 0
+    project=$(basename "$cwd")
+    git_root=""
+    is_git_repo="false"
+    if git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        is_git_repo="true"
+        git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)
+    fi
+    python3 - "$session" "$cwd" "$project" "$git_root" "$is_git_repo" "$PROMPT" << 'PYEOF' >/dev/null 2>&1 || true
+import hashlib, json, re, sys, urllib.request
+session, cwd, project, git_root, is_git_repo, prompt = sys.argv[1:7]
+normalized_prompt = re.sub(r"\s+", " ", prompt).strip()
+payload = {
+    "session": session,
+    "cwd": cwd,
+    "project": project,
+    "git_root": git_root,
+    "is_git_repo": is_git_repo == "true",
+}
+if normalized_prompt and not normalized_prompt.startswith("ccm:"):
+    digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
+    payload["prompt_cache_key"] = f"prompt-v1:{digest}"
+body = json.dumps(payload).encode()
+req = urllib.request.Request("http://127.0.0.1:3457/_api/session-context",
+    data=body, headers={"Content-Type":"application/json"}, method="POST")
+urllib.request.urlopen(req, timeout=0.5).read()
+PYEOF
+}
+
+track_project_context
+
+[[ "$PROMPT" =~ ^ccm:(.*)$ ]] || exit 0
+
+ARG=$(printf '%s' "${BASH_REMATCH[1]}" | python3 -c "import re,sys; s=sys.stdin.read(); s=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', s); s=re.sub(r'\[[0-?]*[ -/]*m\]?$', '', s); print(s.strip())")
+MSG=""
+
+ccm_debug "prompt=$PROMPT arg=$ARG cwd=$CWD CCR_SESSION=${CCR_SESSION:-nil} ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-nil}"
 
 ccr_switch() {
     local preset="$1"

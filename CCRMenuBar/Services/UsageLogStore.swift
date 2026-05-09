@@ -8,6 +8,9 @@ struct UsageLogRecord {
     let completedAt: Date
     let statusCode: Int
     let outputTokens: Int
+    let providerPromptTokens: Int
+    let providerCacheReadTokens: Int
+    let providerCacheCreationTokens: Int
     let error: String?
     let responseBodyBytes: Int?
     let upstreamInputTokens: Int?
@@ -23,7 +26,16 @@ struct StoredUsageEvent {
     let requestModel: String?
     let inputTokens: Int
     let outputTokens: Int
+    let providerPromptTokens: Int
+    let providerCacheReadTokens: Int
+    let providerCacheCreationTokens: Int
     let statusCode: Int
+    let projectPath: String?
+    let projectName: String?
+    let gitRoot: String?
+    let isGitRepository: Bool
+    let promptCacheKey: String?
+    let promptCacheCandidateTokens: Int
 }
 
 enum UsageLogStore {
@@ -84,7 +96,10 @@ enum UsageLogStore {
 
         let sql = """
         SELECT request_id, started_at, route, provider, model, request_model,
-               input_tokens_estimated, output_tokens_estimated, status_code
+               input_tokens_estimated, output_tokens_estimated, provider_prompt_tokens, status_code,
+               project_path, project_name, git_root, is_git_repository,
+               prompt_cache_key, prompt_cache_candidate_tokens,
+               provider_cache_read_tokens, provider_cache_creation_tokens
         FROM usage_events
         ORDER BY started_at ASC;
         """
@@ -114,7 +129,16 @@ enum UsageLogStore {
                 requestModel: text(statement, 5),
                 inputTokens: Int(sqlite3_column_int64(statement, 6)),
                 outputTokens: Int(sqlite3_column_int64(statement, 7)),
-                statusCode: Int(sqlite3_column_int64(statement, 8))
+                providerPromptTokens: Int(sqlite3_column_int64(statement, 8)),
+                providerCacheReadTokens: Int(sqlite3_column_int64(statement, 16)),
+                providerCacheCreationTokens: Int(sqlite3_column_int64(statement, 17)),
+                statusCode: Int(sqlite3_column_int64(statement, 9)),
+                projectPath: text(statement, 10),
+                projectName: text(statement, 11),
+                gitRoot: text(statement, 12),
+                isGitRepository: sqlite3_column_int64(statement, 13) == 1,
+                promptCacheKey: text(statement, 14),
+                promptCacheCandidateTokens: Int(sqlite3_column_int64(statement, 15))
             ))
         }
 
@@ -149,9 +173,13 @@ enum UsageLogStore {
             method, path, target_path, session, preset_id, preset, route,
             provider, model, request_model,
             input_tokens_estimated, output_tokens_estimated, total_tokens_estimated,
+            provider_prompt_tokens,
+            provider_cache_read_tokens, provider_cache_creation_tokens,
             upstream_input_tokens, upstream_output_tokens,
-            status_code, error, response_body_bytes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            status_code, error, response_body_bytes,
+            project_path, project_name, git_root, is_git_repository,
+            prompt_cache_key, prompt_cache_candidate_tokens
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
 
         var statement: OpaquePointer?
@@ -179,11 +207,20 @@ enum UsageLogStore {
         sqlite3_bind_int64(statement, 16, Int64(record.context.inputTokens))
         sqlite3_bind_int64(statement, 17, Int64(record.outputTokens))
         sqlite3_bind_int64(statement, 18, Int64(totalTokens))
-        bindInt(statement, 19, record.upstreamInputTokens)
-        bindInt(statement, 20, record.upstreamOutputTokens)
-        sqlite3_bind_int64(statement, 21, Int64(record.statusCode))
-        bindText(statement, 22, record.error)
-        bindInt(statement, 23, record.responseBodyBytes)
+        sqlite3_bind_int64(statement, 19, Int64(record.providerPromptTokens))
+        sqlite3_bind_int64(statement, 20, Int64(record.providerCacheReadTokens))
+        sqlite3_bind_int64(statement, 21, Int64(record.providerCacheCreationTokens))
+        bindInt(statement, 22, record.upstreamInputTokens)
+        bindInt(statement, 23, record.upstreamOutputTokens)
+        sqlite3_bind_int64(statement, 24, Int64(record.statusCode))
+        bindText(statement, 25, record.error)
+        bindInt(statement, 26, record.responseBodyBytes)
+        bindText(statement, 27, record.context.project?.cwd)
+        bindText(statement, 28, record.context.project?.projectName)
+        bindText(statement, 29, record.context.project?.gitRoot)
+        bindBool(statement, 30, record.context.project?.isGitRepository)
+        bindText(statement, 31, record.context.promptCacheKey)
+        sqlite3_bind_int64(statement, 32, Int64(record.context.promptCacheCandidateTokens))
 
         return sqlite3_step(statement) == SQLITE_DONE
     }
@@ -211,11 +248,20 @@ enum UsageLogStore {
                 input_tokens_estimated INTEGER NOT NULL,
                 output_tokens_estimated INTEGER NOT NULL,
                 total_tokens_estimated INTEGER NOT NULL,
+                provider_prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                provider_cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+                provider_cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
                 upstream_input_tokens INTEGER,
                 upstream_output_tokens INTEGER,
                 status_code INTEGER NOT NULL,
                 error TEXT,
                 response_body_bytes INTEGER,
+                project_path TEXT,
+                project_name TEXT,
+                git_root TEXT,
+                is_git_repository INTEGER NOT NULL DEFAULT 0,
+                prompt_cache_key TEXT,
+                prompt_cache_candidate_tokens INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             """,
@@ -233,7 +279,50 @@ enum UsageLogStore {
                 return false
             }
         }
+        if !columnExists("usage_events", "provider_prompt_tokens", in: db) {
+            if sqlite3_exec(db, "ALTER TABLE usage_events ADD COLUMN provider_prompt_tokens INTEGER NOT NULL DEFAULT 0;", nil, nil, nil) != SQLITE_OK {
+                return false
+            }
+        }
+        if sqlite3_exec(db, "UPDATE usage_events SET provider_prompt_tokens = input_tokens_estimated WHERE provider_prompt_tokens = 0;", nil, nil, nil) != SQLITE_OK {
+            return false
+        }
+        let migrations: [(column: String, definition: String)] = [
+            ("project_path", "project_path TEXT"),
+            ("project_name", "project_name TEXT"),
+            ("git_root", "git_root TEXT"),
+            ("is_git_repository", "is_git_repository INTEGER NOT NULL DEFAULT 0"),
+            ("prompt_cache_key", "prompt_cache_key TEXT"),
+            ("prompt_cache_candidate_tokens", "prompt_cache_candidate_tokens INTEGER NOT NULL DEFAULT 0"),
+            ("provider_cache_read_tokens", "provider_cache_read_tokens INTEGER NOT NULL DEFAULT 0"),
+            ("provider_cache_creation_tokens", "provider_cache_creation_tokens INTEGER NOT NULL DEFAULT 0"),
+        ]
+        for migration in migrations where !columnExists("usage_events", migration.column, in: db) {
+            if sqlite3_exec(db, "ALTER TABLE usage_events ADD COLUMN \(migration.definition);", nil, nil, nil) != SQLITE_OK {
+                return false
+            }
+        }
+        if sqlite3_exec(db, "CREATE INDEX IF NOT EXISTS idx_usage_events_project_day ON usage_events(project_name, day);", nil, nil, nil) != SQLITE_OK {
+            return false
+        }
         return true
+    }
+
+    private static func columnExists(_ table: String, _ column: String, in db: OpaquePointer) -> Bool {
+        let sql = "PRAGMA table_info(\(table));"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+            sqlite3_finalize(statement)
+            return false
+        }
+        defer { sqlite3_finalize(statement) }
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if text(statement, 1) == column {
+                return true
+            }
+        }
+        return false
     }
 
     private static func bindText(_ statement: OpaquePointer, _ index: Int32, _ value: String?) {
@@ -250,6 +339,10 @@ enum UsageLogStore {
             return
         }
         sqlite3_bind_int64(statement, index, Int64(value))
+    }
+
+    private static func bindBool(_ statement: OpaquePointer, _ index: Int32, _ value: Bool?) {
+        sqlite3_bind_int64(statement, index, value == true ? 1 : 0)
     }
 
     private static func text(_ statement: OpaquePointer, _ index: Int32) -> String? {
