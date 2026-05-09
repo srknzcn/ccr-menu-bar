@@ -78,6 +78,18 @@ Download the latest `CCR.Menu.Bar.zip` from [Releases](../../releases), unzip it
 
 Release builds are for Apple Silicon Macs running macOS 14.0 or later. If macOS blocks the app because it was downloaded from the internet, open **System Settings → Privacy & Security** and choose **Open Anyway** for CCR Menu Bar.
 
+### Publishing Updates
+
+CCR Menu Bar uses Sparkle for in-app updates. Before publishing a GitHub release, bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`, then run:
+
+```bash
+./scripts/prepare-sparkle-release.sh v1.4.0
+```
+
+Upload `build/CCR.Menu.Bar.zip` to that GitHub release and commit the generated `docs/appcast.xml`. Existing installs check `https://srknzcn.github.io/ccr-menu-bar/appcast.xml` every hour and can also use **Settings -> General -> Check for Updates**.
+
+For CI or non-interactive signing, pass `SPARKLE_PRIVATE_KEY_FILE=/path/to/private-key`.
+
 ### Build from Source
 
 1. Install [XcodeGen](https://github.com/yonaskolb/XcodeGen) if you don't have it:

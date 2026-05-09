@@ -9,6 +9,7 @@ struct CCRMenuBarApp: App {
     @StateObject private var presetManager = PresetManager.shared
     @StateObject private var proxyService = ProxyService()
     @StateObject private var mcpInstaller = MCPInstaller()
+    @StateObject private var updateService = UpdateService.shared
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -68,7 +69,8 @@ struct CCRMenuBarApp: App {
             SettingsView(
                 configManager: configManager,
                 mcpInstaller: mcpInstaller,
-                tokenUsageService: tokenUsageService
+                tokenUsageService: tokenUsageService,
+                updateService: updateService
             )
         }
         .defaultSize(width: 760, height: 600)

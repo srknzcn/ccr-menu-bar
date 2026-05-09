@@ -4,6 +4,7 @@ struct SettingsView: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var mcpInstaller: MCPInstaller
     @ObservedObject var tokenUsageService: TokenUsageService
+    @ObservedObject var updateService: UpdateService
     @State private var selectedTab = 0
 
     var body: some View {
@@ -39,7 +40,11 @@ struct SettingsView: View {
                 case 3:
                     IntegrationsTab(mcpInstaller: mcpInstaller)
                 default:
-                    GeneralTab(configManager: configManager, tokenUsageService: tokenUsageService)
+                    GeneralTab(
+                        configManager: configManager,
+                        tokenUsageService: tokenUsageService,
+                        updateService: updateService
+                    )
                 }
             }
         }

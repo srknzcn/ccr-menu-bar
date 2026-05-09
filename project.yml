@@ -15,10 +15,18 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_HARDENED_RUNTIME: true
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.1
+
 targets:
   CCRMenuBar:
     type: application
     platform: macOS
+    dependencies:
+      - package: Sparkle
+        product: Sparkle
     sources:
       - path: CCRMenuBar
         excludes:

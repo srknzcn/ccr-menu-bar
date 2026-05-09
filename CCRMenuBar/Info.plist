@@ -24,5 +24,17 @@
     <true/>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
+    <key>SUFeedURL</key>
+    <string>https://srknzcn.github.io/ccr-menu-bar/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>TylcvBmK+8Ifufe8IQnc7ZIIRMtzOQrtPpgeiMVA6/M=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>3600</integer>
+    <key>SUAutomaticallyUpdate</key>
+    <true/>
+    <key>SUAllowsAutomaticUpdates</key>
+    <true/>
 </dict>
 </plist>

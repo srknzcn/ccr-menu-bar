@@ -4,6 +4,7 @@ import ServiceManagement
 struct GeneralTab: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var tokenUsageService: TokenUsageService
+    @ObservedObject var updateService: UpdateService
     @State private var showAPIKey = false
     @State private var showSaved = false
     @State private var showPricingRefreshed = false
@@ -29,6 +30,33 @@ struct GeneralTab: View {
                                         launchAtLogin = SMAppService.mainApp.status == .enabled
                                     }
                                 }
+                        }
+
+                        SettingsRow(label: "Version") {
+                            Text(appVersionText)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        SettingsRow(label: "Updates") {
+                            HStack(spacing: 8) {
+                                Button {
+                                    updateService.checkForUpdates()
+                                } label: {
+                                    Label("Check for Updates", systemImage: "arrow.down.circle")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 7))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!updateService.canCheckForUpdates)
+
+                                Text("Checks every hour")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
 
@@ -231,6 +259,17 @@ struct GeneralTab: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+
+        if let build, !build.isEmpty {
+            return "\(version) (\(build))"
+        }
+
+        return version
     }
 }
 

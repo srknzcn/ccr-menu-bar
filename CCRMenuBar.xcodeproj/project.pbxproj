@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0208F61651C43C0B4BA60B38 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6E2612C8592607D8F293B26A /* Sparkle */; };
 		03EFEC94395A0B8AA487042C /* PresetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53EB3C7EB4739B23F644A00 /* PresetManager.swift */; };
 		1A0950D240A78D757D8DEEF5 /* ConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AEA773FE41833421CA1D85 /* ConfigManager.swift */; };
 		1FC1B233371366EF5675BD6B /* ServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C6D3E8C734768E6967C5CF /* ServerManager.swift */; };
 		204AA49F1F4F9621482F0503 /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB73745818D5F9CC71FACB0 /* AnyCodable.swift */; };
 		35DCC7AD97AD07A82A643A6B /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */; };
+		3B84E217040C481F30E33CBE /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA386946D6FBA796A21FCD3 /* UpdateService.swift */; };
 		3DA5EBE3D52F2AF272CF6AC4 /* ProvidersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC20EEF802AE3513C4BB3E8E /* ProvidersTab.swift */; };
 		40D8E76873FD6CC438C351B1 /* MenuBarPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */; };
 		4AEB78C181CB892923054735 /* IntegrationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E846D6BB06DCD1C3E153D7 /* IntegrationsTab.swift */; };
@@ -39,6 +41,7 @@
 		09F2A20A4D9E4D359F5B4C49 /* CCRMenuBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CCRMenuBar.entitlements; sourceTree = "<group>"; };
 		129B1E234AD17AA57035CF0E /* MenuBarPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopup.swift; sourceTree = "<group>"; };
 		15C6D3E8C734768E6967C5CF /* ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerManager.swift; sourceTree = "<group>"; };
+		1BA386946D6FBA796A21FCD3 /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
 		1BCE4C18AF126201587A37FA /* PresetsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetsTab.swift; sourceTree = "<group>"; };
 		2452B09D38E37AB03BCD7432 /* ModelPricingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricingService.swift; sourceTree = "<group>"; };
 		33D623336C1319268E142F3F /* CCRMenuBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRMenuBarApp.swift; sourceTree = "<group>"; };
@@ -64,6 +67,17 @@
 		F815FBEF55C411A964A5C523 /* RouterSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterSection.swift; sourceTree = "<group>"; };
 		FF966DCF75B8538E3348EA0D /* ServerStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStatusView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		493147E8E9096567D70B0D6F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0208F61651C43C0B4BA60B38 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		14190191FF2E5991354BFCB2 /* Resources */ = {
@@ -135,6 +149,7 @@
 				15C6D3E8C734768E6967C5CF /* ServerManager.swift */,
 				405F077EB164E7E614127482 /* SpendLimitNotificationService.swift */,
 				465589090D8BE2D14181C76D /* TokenUsageService.swift */,
+				1BA386946D6FBA796A21FCD3 /* UpdateService.swift */,
 				EBBC95AA516CCF6B6DD0FFDE /* UsageLogStore.swift */,
 			);
 			path = Services;
@@ -158,6 +173,7 @@
 			buildPhases = (
 				9419D9CBB78F33B52C1E4328 /* Sources */,
 				F896BE4C772A917A27D593A3 /* Resources */,
+				493147E8E9096567D70B0D6F /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -165,6 +181,7 @@
 			);
 			name = CCRMenuBar;
 			packageProductDependencies = (
+				6E2612C8592607D8F293B26A /* Sparkle */,
 			);
 			productName = CCRMenuBar;
 			productReference = CE8BC6FD22B1C00D86E7EDD5 /* CCRMenuBar.app */;
@@ -193,6 +210,9 @@
 			);
 			mainGroup = CE66DB6E3A270F98C1106F69;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				619C4C06A45D6AF39780A078 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1848EB10F3C21F1C40D93E98 /* Products */;
 			projectDirPath = "";
@@ -242,6 +262,7 @@
 				B0F0B785916324CD633FB3ED /* SpendLimitNotificationService.swift in Sources */,
 				AB3E1A6855696954C8FBBD0E /* TokenUsageService.swift in Sources */,
 				7BD0F1EDB628F524377E009D /* TokenUsageView.swift in Sources */,
+				3B84E217040C481F30E33CBE /* UpdateService.swift in Sources */,
 				E0F472DBB323D7464FFDD689 /* UsageLogStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -434,6 +455,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		619C4C06A45D6AF39780A078 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6E2612C8592607D8F293B26A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 619C4C06A45D6AF39780A078 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8C52306BE86F03010D407E20 /* Project object */;
 }
