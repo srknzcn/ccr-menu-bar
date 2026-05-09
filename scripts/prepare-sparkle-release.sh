@@ -39,7 +39,11 @@ BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
 PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/$ZIP_NAME"
 RELEASE_NOTES_URL="https://github.com/$REPO/releases/tag/$TAG"
-SIGNATURE_ATTRS="$("$SPARKLE_BIN/sign_update" "${SIGN_UPDATE_ARGS[@]}" "$ZIP_PATH")"
+if [ ${#SIGN_UPDATE_ARGS[@]} -gt 0 ]; then
+  SIGNATURE_ATTRS="$("$SPARKLE_BIN/sign_update" "${SIGN_UPDATE_ARGS[@]}" "$ZIP_PATH")"
+else
+  SIGNATURE_ATTRS="$("$SPARKLE_BIN/sign_update" "$ZIP_PATH")"
+fi
 
 cat > "$APPCAST_PATH" <<XML
 <?xml version="1.0" encoding="utf-8"?>

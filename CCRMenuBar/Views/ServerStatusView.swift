@@ -35,9 +35,16 @@ struct ServerStatusView: View {
             Spacer()
 
             if !serverManager.ccrFound {
-                Label("ccr not found", systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
+                Button {
+                    serverManager.installCCRAndStart()
+                } label: {
+                    Label(serverManager.isInstallingCCR ? "installing ccr..." : "ccr not found", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .disabled(serverManager.isInstallingCCR)
+                .help(serverManager.isInstallingCCR ? "Installing Claude Code Router" : "Install Claude Code Router and start CCR server")
             } else {
                 HStack(spacing: 6) {
                     if serverManager.isRunning {

@@ -7,6 +7,7 @@ class ServerManager: ObservableObject {
     @Published var isRunning = false
     @Published var errorMessage: String?
     @Published var ccrFound = true
+    @Published var isInstallingCCR = false
 
     private var timer: Timer?
     private let pidPath: String
@@ -104,9 +105,45 @@ class ServerManager: ObservableObject {
     func stop() { runCCR("stop") }
     func restart() { runCCR("restart") }
 
-    private func runCCR(_ command: String) {
+    func installCCRAndStart() {
+        guard !isInstallingCCR else { return }
+        isInstallingCCR = true
+        errorMessage = "Installing CCR..."
+
+        DispatchQueue.global().async { [weak self] in
+            let installResult: (output: String, exitCode: Int32) = self?.shell("npm install -g @musistudio/claude-code-router")
+                ?? (output: "Install failed", exitCode: -1)
+
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                if installResult.exitCode != 0 {
+                    self.isInstallingCCR = false
+                    let msg = installResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.errorMessage = msg.isEmpty ? "CCR install failed (exit \(installResult.exitCode))" : msg
+                    self.resolveCCRPath()
+                    return
+                }
+
+                self.resolveCCRPath()
+                guard self.ccrFound else {
+                    self.isInstallingCCR = false
+                    self.errorMessage = "CCR installed, but ccr binary not found in PATH"
+                    return
+                }
+
+                self.errorMessage = nil
+                self.runCCR("start") {
+                    self.isInstallingCCR = false
+                }
+            }
+        }
+    }
+
+    private func runCCR(_ command: String, completion: (() -> Void)? = nil) {
         guard let ccr = ccrPath else {
             errorMessage = "ccr not found"
+            completion?()
             return
         }
         errorMessage = nil
@@ -146,6 +183,7 @@ class ServerManager: ObservableObject {
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     self?.checkStatus()
+                    completion?()
                 }
             }
         }
