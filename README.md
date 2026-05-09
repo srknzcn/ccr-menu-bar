@@ -68,7 +68,9 @@ A native macOS menu bar application for managing [Claude Code Router (CCR)](http
 
 ### Download Release
 
-Download the latest `CCR.Menu.Bar.app` from [Releases](../../releases), move it to `/Applications`, and launch.
+Download the latest `CCR.Menu.Bar.zip` from [Releases](../../releases), unzip it, move `CCR Menu Bar.app` to `/Applications`, and launch.
+
+Release builds are for Apple Silicon Macs running macOS 14.0 or later. If macOS blocks the app because it was downloaded from the internet, open **System Settings → Privacy & Security** and choose **Open Anyway** for CCR Menu Bar.
 
 ### Build from Source
 
