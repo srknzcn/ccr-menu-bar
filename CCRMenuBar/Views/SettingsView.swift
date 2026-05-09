@@ -11,13 +11,13 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             // Custom tab bar
             HStack(spacing: 0) {
-                TabButton(title: "Providers", icon: "server.rack", isSelected: selectedTab == 0) {
+                TabButton(title: "General", icon: "gearshape", isSelected: selectedTab == 0) {
                     selectedTab = 0
                 }
-                TabButton(title: "Presets", icon: "bookmark", isSelected: selectedTab == 1) {
+                TabButton(title: "Providers", icon: "server.rack", isSelected: selectedTab == 1) {
                     selectedTab = 1
                 }
-                TabButton(title: "General", icon: "gearshape", isSelected: selectedTab == 2) {
+                TabButton(title: "Presets", icon: "bookmark", isSelected: selectedTab == 2) {
                     selectedTab = 2
                 }
                 TabButton(title: "Integrations", icon: "puzzlepiece.extension", isSelected: selectedTab == 3) {
@@ -34,17 +34,19 @@ struct SettingsView: View {
             Group {
                 switch selectedTab {
                 case 0:
-                    ProvidersTab(configManager: configManager, tokenUsageService: tokenUsageService)
-                case 1:
-                    PresetsTab(configManager: configManager)
-                case 3:
-                    IntegrationsTab(mcpInstaller: mcpInstaller)
-                default:
                     GeneralTab(
                         configManager: configManager,
                         tokenUsageService: tokenUsageService,
                         updateService: updateService
                     )
+                case 1:
+                    ProvidersTab(configManager: configManager, tokenUsageService: tokenUsageService)
+                case 2:
+                    PresetsTab(configManager: configManager)
+                case 3:
+                    IntegrationsTab(mcpInstaller: mcpInstaller)
+                default:
+                    EmptyView()
                 }
             }
         }

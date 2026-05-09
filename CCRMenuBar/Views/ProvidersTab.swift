@@ -1,12 +1,17 @@
 import SwiftUI
+import AppKit
 
 struct ProvidersTab: View {
     @ObservedObject var configManager: ConfigManager
     @ObservedObject var tokenUsageService: TokenUsageService
     @State private var selectedProvider: String?
-    @State private var newModelName = ""
+    @State private var activeModelInputProvider: String?
+    @State private var modelDrafts: [String: String] = [:]
     @State private var showAPIKey = false
     @State private var showSaved = false
+    @State private var fetchedModels: [String: [String]] = [:]
+    @State private var loadingModelProvider: String?
+    @State private var modelFetchMessages: [String: String] = [:]
 
     var body: some View {
         HSplitView {
@@ -69,6 +74,9 @@ struct ProvidersTab: View {
             syncUsageContext()
             tokenUsageService.refresh()
         }
+        .onChange(of: selectedProvider) {
+            activeModelInputProvider = nil
+        }
     }
 
     @ViewBuilder
@@ -77,6 +85,21 @@ struct ProvidersTab: View {
             VStack(spacing: 20) {
                 // Provider info card
                 SettingsCard(title: "Provider", icon: "cloud", color: .blue) {
+                    SettingsRow(label: "Preset") {
+                        Picker("Preset", selection: Binding(
+                            get: { ProviderPreset.matching(configManager.config?.Providers[index])?.id },
+                            set: { presetID in
+                                applyPreset(id: presetID, at: index)
+                            }
+                        )) {
+                            Text("Custom").tag(String?.none)
+                            Divider()
+                            ForEach(ProviderPreset.all) { preset in
+                                Text(preset.displayName).tag(String?.some(preset.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
                     SettingsRow(label: "Name") {
                         TextField("provider-name", text: Binding(
                             get: { configManager.config?.Providers[index].name ?? "" },
@@ -184,20 +207,76 @@ struct ProvidersTab: View {
                         }
                     }
 
-                    // Add model
-                    HStack(spacing: 8) {
-                        TextField("Model name (e.g. gpt-4o)", text: $newModelName)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { addModel(at: index) }
-                        Button {
-                            addModel(at: index)
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(newModelName.isEmpty ? Color.gray.opacity(0.3) : Color.blue)
+                    let providerName = configManager.config?.Providers[index].name ?? ""
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            if activeModelInputProvider == providerName {
+                                ModelComboBoxField(
+                                    text: modelDraftBinding(for: providerName),
+                                    suggestions: modelSuggestions(for: index),
+                                    onSubmit: { addModel(at: index) }
+                                )
+                                Button {
+                                    addModel(at: index)
+                                } label: {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(modelDraft(for: providerName).isEmpty ? Color.gray.opacity(0.3) : Color.blue)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(modelDraft(for: providerName).isEmpty)
+                                .help("Add model")
+
+                                Button {
+                                    cancelModelInput(for: providerName)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Cancel")
+                            } else {
+                                Button {
+                                    activeModelInputProvider = providerName
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 10, weight: .semibold))
+                                        Text("Add Model")
+                                            .font(.system(size: 11, weight: .medium))
+                                    }
+                                    .foregroundStyle(.purple)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.purple.opacity(0.1), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            Button {
+                                fetchModels(at: index)
+                            } label: {
+                                if loadingModelProvider == providerName {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .frame(width: 18, height: 18)
+                                } else {
+                                    Image(systemName: "arrow.clockwise.circle")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(loadingModelProvider != nil || providerPreset(at: index)?.modelSource == nil)
+                            .help(providerPreset(at: index)?.modelSource == nil ? "Remote model fetch is not configured for this provider" : "Fetch available models")
                         }
-                        .buttonStyle(.plain)
-                        .disabled(newModelName.isEmpty)
+
+                        if let message = modelFetchMessages[providerName] {
+                            Text(message)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     .padding(.top, 4)
                 }
@@ -245,9 +324,34 @@ struct ProvidersTab: View {
     }
 
     private func addModel(at index: Int) {
-        guard !newModelName.isEmpty else { return }
-        configManager.config?.Providers[index].models.append(newModelName)
-        newModelName = ""
+        guard let providerName = configManager.config?.Providers[index].name else { return }
+        let model = modelDraft(for: providerName).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !model.isEmpty else { return }
+        guard configManager.config?.Providers[index].models.contains(model) == false else {
+            modelDrafts[providerName] = ""
+            activeModelInputProvider = nil
+            return
+        }
+        configManager.config?.Providers[index].models.append(model)
+        modelDrafts[providerName] = ""
+        activeModelInputProvider = nil
+        configManager.hasUnsavedChanges = true
+    }
+
+    private func modelDraft(for providerName: String) -> String {
+        modelDrafts[providerName] ?? ""
+    }
+
+    private func modelDraftBinding(for providerName: String) -> Binding<String> {
+        Binding(
+            get: { modelDrafts[providerName] ?? "" },
+            set: { modelDrafts[providerName] = $0 }
+        )
+    }
+
+    private func cancelModelInput(for providerName: String) {
+        modelDrafts[providerName] = ""
+        activeModelInputProvider = nil
     }
 
     private func isThinkingDisabled(providerIndex index: Int, model: String) -> Bool {
@@ -294,20 +398,103 @@ struct ProvidersTab: View {
     }
 
     private func addProvider() {
-        let newProvider = Provider(
-            name: "new-provider",
-            api_base_url: "",
-            api_key: "",
-            models: []
-        )
+        let preset = ProviderPreset.openRouter
+        let newProvider = preset.provider()
         configManager.config?.Providers.append(newProvider)
         selectedProvider = newProvider.name
+        activeModelInputProvider = nil
+        fetchedModels[newProvider.name] = nil
+        modelFetchMessages[newProvider.name] = nil
+        configManager.hasUnsavedChanges = true
     }
 
     private func removeSelectedProvider() {
         guard let name = selectedProvider else { return }
         configManager.config?.Providers.removeAll { $0.name == name }
+        modelDrafts[name] = nil
+        fetchedModels[name] = nil
+        modelFetchMessages[name] = nil
+        if activeModelInputProvider == name {
+            activeModelInputProvider = nil
+        }
         selectedProvider = nil
+        configManager.hasUnsavedChanges = true
+    }
+
+    private func applyPreset(id presetID: String?, at index: Int) {
+        guard let presetID,
+              let preset = ProviderPreset.all.first(where: { $0.id == presetID }),
+              configManager.config != nil else {
+            return
+        }
+
+        let existingAPIKey = configManager.config?.Providers[index].api_key ?? ""
+        configManager.config?.Providers[index].name = uniqueProviderName(preset.providerName, replacing: index)
+        configManager.config?.Providers[index].api_base_url = preset.apiBaseURL
+        configManager.config?.Providers[index].api_key = existingAPIKey
+        configManager.config?.Providers[index].transformer = TransformerConfig(use: preset.transformers)
+        if configManager.config?.Providers[index].models.isEmpty == true {
+            configManager.config?.Providers[index].models = preset.defaultModels
+        }
+        selectedProvider = configManager.config?.Providers[index].name
+        activeModelInputProvider = nil
+        fetchedModels[configManager.config?.Providers[index].name ?? ""] = nil
+        modelFetchMessages[configManager.config?.Providers[index].name ?? ""] = preset.modelSource == nil ? "Remote model list is not available for this preset." : nil
+        configManager.hasUnsavedChanges = true
+    }
+
+    private func uniqueProviderName(_ baseName: String, replacing index: Int) -> String {
+        guard let providers = configManager.config?.Providers else { return baseName }
+        let existing = Set(providers.enumerated().compactMap { offset, provider in
+            offset == index ? nil : provider.name
+        })
+        guard existing.contains(baseName) else { return baseName }
+
+        var suffix = 2
+        while existing.contains("\(baseName)-\(suffix)") {
+            suffix += 1
+        }
+        return "\(baseName)-\(suffix)"
+    }
+
+    private func providerPreset(at index: Int) -> ProviderPreset? {
+        ProviderPreset.matching(configManager.config?.Providers[index])
+    }
+
+    private func modelSuggestions(for index: Int) -> [String] {
+        let existing = Set(configManager.config?.Providers[index].models ?? [])
+        let presetDefaults = providerPreset(at: index)?.defaultModels ?? []
+        let providerName = configManager.config?.Providers[index].name ?? ""
+        return Array(Set((fetchedModels[providerName] ?? []) + presetDefaults))
+            .filter { !existing.contains($0) }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func fetchModels(at index: Int) {
+        guard let provider = configManager.config?.Providers[index] else { return }
+        guard let preset = ProviderPreset.matching(provider),
+              let source = preset.modelSource else {
+            modelFetchMessages[provider.name] = "Remote model list is not available for this provider."
+            return
+        }
+
+        loadingModelProvider = provider.name
+        modelFetchMessages[provider.name] = nil
+        Task {
+            do {
+                let models = try await ProviderModelFetcher.fetchModels(for: provider, source: source)
+                await MainActor.run {
+                    fetchedModels[provider.name] = models
+                    modelFetchMessages[provider.name] = models.isEmpty ? "No models returned." : "\(models.count) models loaded."
+                    loadingModelProvider = nil
+                }
+            } catch {
+                await MainActor.run {
+                    modelFetchMessages[provider.name] = "Could not load models: \(error.localizedDescription)"
+                    loadingModelProvider = nil
+                }
+            }
+        }
     }
 
     private static let limitFormatter: NumberFormatter = {
@@ -532,4 +719,287 @@ struct ModelRow: View {
             withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
         }
     }
+}
+
+struct ModelComboBoxField: NSViewRepresentable {
+    @Binding var text: String
+    let suggestions: [String]
+    let onSubmit: () -> Void
+
+    func makeNSView(context: Context) -> NSComboBox {
+        let comboBox = NSComboBox()
+        comboBox.usesDataSource = false
+        comboBox.completes = true
+        comboBox.numberOfVisibleItems = 20
+        comboBox.hasVerticalScroller = true
+        comboBox.isEditable = true
+        comboBox.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        comboBox.placeholderString = "Model name (e.g. gpt-5)"
+        comboBox.target = context.coordinator
+        comboBox.action = #selector(Coordinator.selectionChanged(_:))
+        comboBox.delegate = context.coordinator
+        reload(comboBox, with: suggestions, matching: text)
+        return comboBox
+    }
+
+    func updateNSView(_ comboBox: NSComboBox, context: Context) {
+        context.coordinator.parent = self
+        if comboBox.stringValue != text {
+            comboBox.stringValue = text
+        }
+        reload(comboBox, with: suggestions, matching: text)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    private func reload(_ comboBox: NSComboBox, with suggestions: [String], matching query: String) {
+        let filteredSuggestions = filtered(suggestions, matching: query)
+        let currentItems = (0..<comboBox.numberOfItems).compactMap { comboBox.itemObjectValue(at: $0) as? String }
+        guard currentItems != filteredSuggestions else { return }
+        comboBox.removeAllItems()
+        comboBox.addItems(withObjectValues: filteredSuggestions)
+        comboBox.noteNumberOfItemsChanged()
+    }
+
+    private func filtered(_ suggestions: [String], matching query: String) -> [String] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return suggestions }
+        return suggestions.filter {
+            $0.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
+
+    final class Coordinator: NSObject, NSComboBoxDelegate {
+        var parent: ModelComboBoxField
+
+        init(parent: ModelComboBoxField) {
+            self.parent = parent
+        }
+
+        @objc func selectionChanged(_ sender: NSComboBox) {
+            parent.text = sender.stringValue
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let comboBox = notification.object as? NSComboBox else { return }
+            parent.text = comboBox.stringValue
+            parent.reload(comboBox, with: parent.suggestions, matching: comboBox.stringValue)
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
+            parent.text = control.stringValue
+            parent.onSubmit()
+            return true
+        }
+    }
+}
+
+struct ProviderPreset: Identifiable, Hashable {
+    enum ModelSource: Hashable {
+        case openAICompatibleModels
+        case anthropicModels
+        case openRouterModels
+        case ollamaTags
+    }
+
+    let id: String
+    let displayName: String
+    let providerName: String
+    let apiBaseURL: String
+    let transformers: [String]
+    let defaultModels: [String]
+    let modelSource: ModelSource?
+
+    static let openRouter = ProviderPreset(
+        id: "openrouter",
+        displayName: "OpenRouter",
+        providerName: "openrouter",
+        apiBaseURL: "https://openrouter.ai/api/v1",
+        transformers: ["OpenAI"],
+        defaultModels: ["anthropic/claude-sonnet-4", "openai/gpt-5", "google/gemini-2.5-pro"],
+        modelSource: .openRouterModels
+    )
+
+    static let all: [ProviderPreset] = [
+        openRouter,
+        ProviderPreset(
+            id: "openai",
+            displayName: "OpenAI",
+            providerName: "openai",
+            apiBaseURL: "https://api.openai.com/v1",
+            transformers: ["OpenAI"],
+            defaultModels: ["gpt-5", "gpt-5-mini", "gpt-4o"],
+            modelSource: .openAICompatibleModels
+        ),
+        ProviderPreset(
+            id: "anthropic",
+            displayName: "Anthropic",
+            providerName: "anthropic",
+            apiBaseURL: "https://api.anthropic.com/v1",
+            transformers: ["Anthropic"],
+            defaultModels: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"],
+            modelSource: .anthropicModels
+        ),
+        ProviderPreset(
+            id: "ollama",
+            displayName: "Ollama",
+            providerName: "ollama",
+            apiBaseURL: "http://localhost:11434",
+            transformers: ["OpenAI"],
+            defaultModels: ["llama3.3", "qwen3", "gemma3"],
+            modelSource: .ollamaTags
+        ),
+        ProviderPreset(
+            id: "gemini",
+            displayName: "Gemini",
+            providerName: "gemini",
+            apiBaseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+            transformers: ["gemini"],
+            defaultModels: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
+            modelSource: .openAICompatibleModels
+        ),
+        ProviderPreset(
+            id: "groq",
+            displayName: "Groq",
+            providerName: "groq",
+            apiBaseURL: "https://api.groq.com/openai/v1",
+            transformers: ["OpenAI"],
+            defaultModels: ["llama-3.3-70b-versatile", "openai/gpt-oss-120b"],
+            modelSource: .openAICompatibleModels
+        ),
+        ProviderPreset(
+            id: "deepseek",
+            displayName: "DeepSeek",
+            providerName: "deepseek",
+            apiBaseURL: "https://api.deepseek.com/v1",
+            transformers: ["deepseek"],
+            defaultModels: ["deepseek-chat", "deepseek-reasoner"],
+            modelSource: .openAICompatibleModels
+        )
+    ]
+
+    static func matching(_ provider: Provider?) -> ProviderPreset? {
+        guard let provider else { return nil }
+        let name = provider.name.lowercased()
+        let baseURL = provider.api_base_url.lowercased()
+        return all.first { preset in
+            name == preset.providerName || baseURL == preset.apiBaseURL.lowercased()
+        }
+    }
+
+    func provider() -> Provider {
+        Provider(
+            name: providerName,
+            api_base_url: apiBaseURL,
+            api_key: "",
+            models: defaultModels,
+            transformer: TransformerConfig(use: transformers)
+        )
+    }
+}
+
+enum ProviderModelFetcher {
+    static func fetchModels(for provider: Provider, source: ProviderPreset.ModelSource) async throws -> [String] {
+        let url = modelURL(baseURL: provider.api_base_url, source: source)
+        var request = URLRequest(url: url, timeoutInterval: 20)
+
+        switch source {
+        case .anthropicModels:
+            request.setValue(provider.api_key, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openAICompatibleModels, .openRouterModels:
+            if !provider.api_key.isEmpty {
+                request.setValue("Bearer \(provider.api_key)", forHTTPHeaderField: "Authorization")
+            }
+        case .ollamaTags:
+            break
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ProviderModelFetchError.httpStatus(http.statusCode)
+        }
+
+        switch source {
+        case .ollamaTags:
+            return try JSONDecoder().decode(OllamaTagsResponse.self, from: data).models.map(\.name).sorted()
+        case .openAICompatibleModels, .openRouterModels, .anthropicModels:
+            return try JSONDecoder().decode(ModelsResponse.self, from: data).data.map(\.id).sorted()
+        }
+    }
+
+    private static func modelURL(baseURL: String, source: ProviderPreset.ModelSource) -> URL {
+        var components = URLComponents(url: normalizedBaseURL(baseURL, source: source), resolvingAgainstBaseURL: false)!
+
+        switch source {
+        case .ollamaTags:
+            components.path = appendPath("api/tags", to: components.path)
+        case .openRouterModels:
+            components.path = appendPath("models", to: components.path)
+            components.queryItems = [URLQueryItem(name: "output_modalities", value: "all")]
+        case .openAICompatibleModels, .anthropicModels:
+            components.path = appendPath("models", to: components.path)
+        }
+
+        return components.url!
+    }
+
+    private static func normalizedBaseURL(_ baseURL: String, source: ProviderPreset.ModelSource) -> URL {
+        let fallback = source == .ollamaTags ? "http://localhost:11434" : "https://api.openai.com/v1"
+        let raw = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        var components = URLComponents(string: raw.isEmpty ? fallback : raw) ?? URLComponents(string: fallback)!
+
+        let endpointSuffixes = [
+            "/chat/completions",
+            "/completions",
+            "/messages",
+            "/responses",
+            "/models",
+            "/api/tags"
+        ]
+        for suffix in endpointSuffixes where components.path.hasSuffix(suffix) {
+            components.path.removeLast(suffix.count)
+            break
+        }
+
+        components.query = nil
+        components.fragment = nil
+        return components.url!
+    }
+
+    private static func appendPath(_ path: String, to basePath: String) -> String {
+        let normalizedBase = basePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedBase.isEmpty else { return "/\(path)" }
+        return "/\(normalizedBase)/\(path)"
+    }
+}
+
+enum ProviderModelFetchError: LocalizedError {
+    case httpStatus(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let status):
+            return "HTTP \(status)"
+        }
+    }
+}
+
+struct ModelsResponse: Decodable {
+    struct Model: Decodable {
+        let id: String
+    }
+
+    let data: [Model]
+}
+
+struct OllamaTagsResponse: Decodable {
+    struct Model: Decodable {
+        let name: String
+    }
+
+    let models: [Model]
 }

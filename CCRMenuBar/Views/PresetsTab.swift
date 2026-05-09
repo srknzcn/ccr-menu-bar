@@ -405,8 +405,7 @@ private struct PresetRouteRow: View {
             }
 
             Button {
-                searchText = ""
-                showPicker = true
+                openPicker()
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))
@@ -422,6 +421,9 @@ private struct PresetRouteRow: View {
             in: RoundedRectangle(cornerRadius: 8)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture {
+            openPicker()
+        }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
         }
@@ -439,6 +441,11 @@ private struct PresetRouteRow: View {
                 }
             )
         }
+    }
+
+    private func openPicker() {
+        searchText = ""
+        showPicker = true
     }
 
     private func clearRoute() {
