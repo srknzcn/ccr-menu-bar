@@ -162,7 +162,7 @@ class MCPInstaller: ObservableObject {
         #"    CCR_SESSION="$session" \"# + "\n" +
         #"    ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \"# + "\n" +
         #"    ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \"# + "\n" +
-        #"    claude "$@""# + "\n" +
+        #"    claude --bare "$@""# + "\n" +
         "  else\n" +
         #"    command ccr "$@""# + "\n" +
         "  fi\n" +
