@@ -127,9 +127,9 @@ struct CCRMenuBarApp: App {
         guard installer.needsShellConfigInstall() else { return }
 
         let alert = NSAlert()
-        alert.messageText = "Claude Code shell environment is not configured"
+        alert.messageText = "CCR Menu Bar shell command is not configured"
         alert.informativeText = """
-        CCR Menu Bar needs CCR_SESSION, ANTHROPIC_BASE_URL, and ANTHROPIC_API_KEY in \(installer.shellRCDisplayPath) so Claude Code routes through the local proxy.
+        CCR Menu Bar can add a ccm code command to \(installer.shellRCDisplayPath) so Claude Code routes through the local proxy only when launched through ccm.
 
         Add or update the CCR block now?
         """

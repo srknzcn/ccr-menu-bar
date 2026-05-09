@@ -125,9 +125,10 @@ class MCPInstaller: ObservableObject {
 
     private func hasRequiredShellEnvironment(in content: String) -> Bool {
         let required = [
-            "export CCR_SESSION=",
-            #"export ANTHROPIC_BASE_URL="http://localhost:3457/s/$CCR_SESSION""#,
-            #"export ANTHROPIC_API_KEY="any-value""#
+            "ccm() {",
+            #"ANTHROPIC_BASE_URL="http://localhost:3457/s/$session""#,
+            #"ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}""#,
+            #"command ccr "$@""#
         ]
         return required.allSatisfy { content.contains($0) }
     }
@@ -151,9 +152,21 @@ class MCPInstaller: ObservableObject {
 
     private var shellBlock: String {
         "\n\(Self.shellMarkerBegin)\n" +
-        #"export CCR_SESSION="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}""# + "\n" +
-        "export ANTHROPIC_BASE_URL=\"http://localhost:3457/s/$CCR_SESSION\"\n" +
-        "export ANTHROPIC_API_KEY=\"any-value\"\n" +
+        "unset ANTHROPIC_BASE_URL\n" +
+        #"[[ "$ANTHROPIC_API_KEY" == "any-value" ]] && unset ANTHROPIC_API_KEY"# + "\n" +
+        #"[[ "$ANTHROPIC_AUTH_TOKEN" == "test" ]] && unset ANTHROPIC_AUTH_TOKEN"# + "\n\n" +
+        "ccm() {\n" +
+        #"  if [[ "$1" == "code" ]]; then"# + "\n" +
+        "    shift\n" +
+        #"    local session="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}""# + "\n" +
+        #"    CCR_SESSION="$session" \"# + "\n" +
+        #"    ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \"# + "\n" +
+        #"    ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \"# + "\n" +
+        #"    claude "$@""# + "\n" +
+        "  else\n" +
+        #"    command ccr "$@""# + "\n" +
+        "  fi\n" +
+        "}\n" +
         "\(Self.shellMarkerEnd)\n"
     }
 

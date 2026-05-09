@@ -126,7 +126,7 @@ struct IntegrationsTab: View {
 
     private var shellCard: some View {
         SettingsCard(title: "Shell Setup", icon: "apple.terminal", color: .green) {
-            Text("Sets **ANTHROPIC_BASE_URL** so Claude Code routes through the proxy, and **CCR_SESSION** for per-session preset isolation.")
+            Text("Adds **ccm code** for launching Claude Code through the proxy while leaving plain **claude** on the default Anthropic login.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -231,9 +231,21 @@ struct IntegrationsTab: View {
 
     private var zshrcSnippet: String {
         """
-        export CCR_SESSION="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}"
-        export ANTHROPIC_BASE_URL="http://localhost:3457/s/$CCR_SESSION"
-        export ANTHROPIC_API_KEY="any-value"
+        unset ANTHROPIC_BASE_URL
+        [[ "$ANTHROPIC_API_KEY" == "any-value" ]] && unset ANTHROPIC_API_KEY
+
+        ccm() {
+          if [[ "$1" == "code" ]]; then
+            shift
+            local session="${CCR_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-16)}"
+            CCR_SESSION="$session" \\
+            ANTHROPIC_BASE_URL="http://localhost:3457/s/$session" \\
+            ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-any-value}" \\
+            claude "$@"
+          else
+            command ccr "$@"
+          fi
+        }
         """
     }
 }
