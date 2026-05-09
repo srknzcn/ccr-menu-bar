@@ -41,3 +41,10 @@ This project is indexed by GitNexus as **ccr-menu-bar** (178 symbols, 166 relati
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## Release Checklist
+
+- Every code/config/docs change must bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` before commit.
+- Every release must update and verify GitHub release/tag, GitHub Pages Sparkle appcast, and app version/build metadata together.
+- After publishing, verify live `https://srknzcn.github.io/ccr-menu-bar/appcast.xml` shows the new version/build; checking `docs/appcast.xml` in git is not enough.
+- If Pages still serves the previous appcast, trigger a Pages rebuild with `gh api -X POST repos/srknzcn/ccr-menu-bar/pages/builds`, wait for the build to finish, then re-check the live appcast.
