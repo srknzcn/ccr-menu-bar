@@ -23,7 +23,7 @@ struct CCRMenuBarApp: App {
             SpendLimitNotificationService.requestAuthorization()
             proxy.start()
             installer.installAll()
-            Self.promptForShellConfigIfNeeded(installer)
+            Self.scheduleShellConfigPromptIfNeeded(installer)
             if let providers = ConfigManager.shared.config?.Providers {
                 PresetManager.shared.syncToCCRPresets(providers: providers)
             }
@@ -113,6 +113,14 @@ struct CCRMenuBarApp: App {
             }
         }
         return nil
+    }
+
+    private static func scheduleShellConfigPromptIfNeeded(_ installer: MCPInstaller) {
+        guard installer.needsShellConfigInstall() else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            promptForShellConfigIfNeeded(installer)
+        }
     }
 
     private static func promptForShellConfigIfNeeded(_ installer: MCPInstaller) {
