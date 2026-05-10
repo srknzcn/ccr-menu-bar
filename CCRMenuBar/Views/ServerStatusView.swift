@@ -2,19 +2,14 @@ import SwiftUI
 
 struct ServerStatusView: View {
     @ObservedObject var serverManager: ServerManager
-    @State private var pulseAnimation = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Animated status indicator
             ZStack {
                 if serverManager.isRunning {
                     Circle()
                         .fill(.green.opacity(0.25))
                         .frame(width: 28, height: 28)
-                        .scaleEffect(pulseAnimation ? 1.4 : 1.0)
-                        .opacity(pulseAnimation ? 0 : 0.5)
-                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: false), value: pulseAnimation)
                 }
                 Circle()
                     .fill(serverManager.isRunning ? .green : Color(.systemRed))
@@ -22,7 +17,6 @@ struct ServerStatusView: View {
                     .shadow(color: serverManager.isRunning ? .green.opacity(0.5) : .clear, radius: 4)
             }
             .frame(width: 28, height: 28)
-            .onAppear { pulseAnimation = true }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(serverManager.isRunning ? "Running" : "Stopped")

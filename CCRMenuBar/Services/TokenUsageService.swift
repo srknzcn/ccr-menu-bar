@@ -86,6 +86,7 @@ struct LiveTokenGenerationSnapshot: Equatable {
 @MainActor
 final class LiveTokenGenerationMeter: ObservableObject {
     static let shared = LiveTokenGenerationMeter()
+    nonisolated static let isEnabled = false
 
     @Published private(set) var snapshot = LiveTokenGenerationSnapshot()
 
@@ -140,12 +141,14 @@ final class LiveTokenGenerationMeter: ObservableObject {
     }
 
     nonisolated static func begin(context: ProxyUsageLogContext) {
+        guard isEnabled else { return }
         Task { @MainActor in
             shared.beginOnMain(context: context)
         }
     }
 
     nonisolated static func ingestChunk(requestId: String, data: Data) {
+        guard isEnabled else { return }
         let tokenDelta = estimatedOutputTokens(from: data)
         guard tokenDelta > 0 else { return }
         Task { @MainActor in
@@ -154,6 +157,7 @@ final class LiveTokenGenerationMeter: ObservableObject {
     }
 
     nonisolated static func finish(requestId: String, finalOutputTokens: Int? = nil) {
+        guard isEnabled else { return }
         Task { @MainActor in
             shared.finishOnMain(requestId: requestId, finalOutputTokens: finalOutputTokens)
         }
@@ -401,26 +405,33 @@ class TokenUsageService: ObservableObject {
     private let pricingRefreshInterval: TimeInterval = ModelPricingService.cacheRefreshInterval
     private var lastPeriodicUsageRefresh = Date.distantPast
     private let usageFallbackRefreshInterval: TimeInterval = 30
+    private let liveStatusFallbackRefreshInterval: TimeInterval = 5
+    private var lastLiveStatusFileModifiedAt: Date?
+    private var lastLiveStatusSnapshot: LiveTokenGenerationSnapshot?
     private let liveStatusFileURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude-code-router/ccr-live-status.json")
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         logsPath = "\(home)/.claude-code-router/logs"
-        LiveTokenGenerationMeter.shared.$snapshot
-            .sink { [weak self] snapshot in
-                self?.setLiveGeneration(snapshot)
-            }
-            .store(in: &cancellables)
+        if LiveTokenGenerationMeter.isEnabled {
+            LiveTokenGenerationMeter.shared.$snapshot
+                .sink { [weak self] snapshot in
+                    self?.setLiveGeneration(snapshot)
+                }
+                .store(in: &cancellables)
+        }
         NotificationCenter.default.publisher(for: UsageLogStore.didAppendNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshUsageNow()
             }
             .store(in: &cancellables)
-        refreshLiveGenerationFromStatusFile()
         parseLogs()
-        startPolling()
+        if LiveTokenGenerationMeter.isEnabled {
+            refreshLiveGenerationFromStatusFile()
+            startPolling()
+        }
         refreshPricingIfNeeded(force: true)
     }
 
@@ -443,7 +454,7 @@ class TokenUsageService: ObservableObject {
     }
 
     private func startPolling() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: liveStatusFallbackRefreshInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
             MainActor.assumeIsolated {
                 let snapshot = LiveTokenGenerationMeter.shared.snapshot.isVisible
@@ -456,11 +467,14 @@ class TokenUsageService: ObservableObject {
                 }
             }
         }
+        timer?.tolerance = 2
     }
 
     private func refreshUsageNow() {
         lastPeriodicUsageRefresh = Date()
-        refreshLiveGenerationFromStatusFile()
+        if LiveTokenGenerationMeter.isEnabled {
+            refreshLiveGenerationFromStatusFile()
+        }
         parseLogs()
     }
 
@@ -477,8 +491,21 @@ class TokenUsageService: ObservableObject {
     }
 
     private func snapshotFromStatusFile() -> LiveTokenGenerationSnapshot? {
-        guard let data = try? Data(contentsOf: liveStatusFileURL) else { return nil }
-        return LiveTokenGenerationMeter.snapshot(fromStatusData: data)
+        let modifiedAt = (try? FileManager.default.attributesOfItem(atPath: liveStatusFileURL.path)[.modificationDate]) as? Date
+        guard modifiedAt != lastLiveStatusFileModifiedAt else {
+            return lastLiveStatusSnapshot
+        }
+
+        guard let data = try? Data(contentsOf: liveStatusFileURL) else {
+            lastLiveStatusFileModifiedAt = modifiedAt
+            lastLiveStatusSnapshot = nil
+            return nil
+        }
+
+        let snapshot = LiveTokenGenerationMeter.snapshot(fromStatusData: data)
+        lastLiveStatusFileModifiedAt = modifiedAt
+        lastLiveStatusSnapshot = snapshot
+        return snapshot
     }
 
     private func refreshPricingIfNeeded(
