@@ -6,12 +6,12 @@
     <description>Most recent CCR Menu Bar releases.</description>
     <language>en</language>
     <item>
-      <title>Version 1.3.17</title>
-      <sparkle:version>20</sparkle:version>
-      <sparkle:shortVersionString>1.3.17</sparkle:shortVersionString>
-      <sparkle:releaseNotesLink>https://github.com/srknzcn/ccr-menu-bar/releases/tag/v1.3.17</sparkle:releaseNotesLink>
-      <pubDate>Sun, 10 May 2026 16:31:12 +0000</pubDate>
-      <enclosure url="https://github.com/srknzcn/ccr-menu-bar/releases/download/v1.3.17/CCR.Menu.Bar.zip" sparkle:edSignature="h0H5JVnCmImloLe2VrR+aej6dZTYMvmVJ/ZM0EH6QTObJ5BwudY/o+HB1X3FHT8ArB0+uqGDU43GwqksxcXIBQ==" length="2014760" type="application/octet-stream"/>
+      <title>Version 1.3.18</title>
+      <sparkle:version>21</sparkle:version>
+      <sparkle:shortVersionString>1.3.18</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/srknzcn/ccr-menu-bar/releases/tag/v1.3.18</sparkle:releaseNotesLink>
+      <pubDate>Sun, 10 May 2026 16:53:55 +0000</pubDate>
+      <enclosure url="https://github.com/srknzcn/ccr-menu-bar/releases/download/v1.3.18/CCR.Menu.Bar.zip" sparkle:edSignature="MYobYqkS47WWW4ugtuEm6wv1LJASGv9a4x/gQbngbbjjsS8eP7jR2tJP1sdmRFj1cqfEJnX+a4Prrx8pJppyBw==" length="2014890" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>

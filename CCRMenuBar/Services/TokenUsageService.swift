@@ -445,6 +445,10 @@ class TokenUsageService: ObservableObject {
         refreshPricingIfNeeded(force: false)
     }
 
+    func refreshProjectUsage() {
+        parseLogs(includeProjectBreakdown: true)
+    }
+
     func refreshPricingCache() {
         refreshPricingIfNeeded(force: true, forceCacheRefresh: true, allowStaleFallback: false)
     }
@@ -546,7 +550,7 @@ class TokenUsageService: ObservableObject {
         parseLogs()
     }
 
-    private func parseLogs() {
+    private func parseLogs(includeProjectBreakdown: Bool = false) {
         let fm = FileManager.default
         let files = (try? fm.contentsOfDirectory(atPath: logsPath)) ?? []
 
@@ -773,35 +777,37 @@ class TokenUsageService: ObservableObject {
                 projectPath: info.projectPath
             ))
 
-            let projectName = info.projectName?.isEmpty == false ? info.projectName! : "Unknown Project"
-            let projectKey = info.projectPath?.isEmpty == false ? info.projectPath! : projectName
-            var cacheSavingsTokens = 0
-            if let cacheKey = info.promptCacheKey,
-               cacheKey.hasPrefix("prompt-v1:"),
-               info.promptCacheCandidateTokens > 0 {
-                var seenKeys = seenCacheKeysByProject[projectKey, default: []]
-                if seenKeys.contains(cacheKey) {
-                    cacheSavingsTokens = info.promptCacheCandidateTokens + info.outputTokens
-                } else {
-                    seenKeys.insert(cacheKey)
-                    seenCacheKeysByProject[projectKey] = seenKeys
+            if includeProjectBreakdown {
+                let projectName = info.projectName?.isEmpty == false ? info.projectName! : "Unknown Project"
+                let projectKey = info.projectPath?.isEmpty == false ? info.projectPath! : projectName
+                var cacheSavingsTokens = 0
+                if let cacheKey = info.promptCacheKey,
+                   cacheKey.hasPrefix("prompt-v1:"),
+                   info.promptCacheCandidateTokens > 0 {
+                    var seenKeys = seenCacheKeysByProject[projectKey, default: []]
+                    if seenKeys.contains(cacheKey) {
+                        cacheSavingsTokens = info.promptCacheCandidateTokens + info.outputTokens
+                    } else {
+                        seenKeys.insert(cacheKey)
+                        seenCacheKeysByProject[projectKey] = seenKeys
+                    }
                 }
+                var projectUsage = projectData[projectKey] ?? ProjectUsage(
+                    name: projectName,
+                    path: info.projectPath,
+                    gitRoot: info.gitRoot,
+                    isGitRepository: info.isGitRepository,
+                    stats: TokenStats()
+                )
+                projectUsage.stats.inputTokens += info.inputTokens
+                projectUsage.stats.outputTokens += info.outputTokens
+                projectUsage.stats.providerPromptTokens += info.providerPromptTokens
+                projectUsage.stats.providerCacheReadTokens += info.providerCacheReadTokens
+                projectUsage.stats.providerCacheCreationTokens += info.providerCacheCreationTokens
+                projectUsage.stats.cacheSavingsTokens += cacheSavingsTokens
+                projectUsage.stats.requestCount += 1
+                projectData[projectKey] = projectUsage
             }
-            var projectUsage = projectData[projectKey] ?? ProjectUsage(
-                name: projectName,
-                path: info.projectPath,
-                gitRoot: info.gitRoot,
-                isGitRepository: info.isGitRepository,
-                stats: TokenStats()
-            )
-            projectUsage.stats.inputTokens += info.inputTokens
-            projectUsage.stats.outputTokens += info.outputTokens
-            projectUsage.stats.providerPromptTokens += info.providerPromptTokens
-            projectUsage.stats.providerCacheReadTokens += info.providerCacheReadTokens
-            projectUsage.stats.providerCacheCreationTokens += info.providerCacheCreationTokens
-            projectUsage.stats.cacheSavingsTokens += cacheSavingsTokens
-            projectUsage.stats.requestCount += 1
-            projectData[projectKey] = projectUsage
 
             if showTodayOnly && !info.isToday { continue }
 
@@ -864,12 +870,14 @@ class TokenUsageService: ObservableObject {
                 }
                 return $0.timestamp < $1.timestamp
             }
-        let nextProjectBreakdown = projectData.values.sorted {
-            if $0.stats.requestCount != $1.stats.requestCount {
-                return $0.stats.requestCount > $1.stats.requestCount
+        let nextProjectBreakdown: [ProjectUsage] = includeProjectBreakdown
+            ? projectData.values.sorted {
+                if $0.stats.requestCount != $1.stats.requestCount {
+                    return $0.stats.requestCount > $1.stats.requestCount
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
+            : projectBreakdown
         let nextAllTimeCostUSD = pricing.isEmpty ? nil : allCostUSD
         let nextTodayCostUSD = pricing.isEmpty ? nil : dayCostUSD
         let nextTodayProviderCostsUSD = pricing.isEmpty ? [:] : todayProviderCostsUSD
@@ -886,7 +894,7 @@ class TokenUsageService: ObservableObject {
         if modelUsageSamples != nextModelUsageSamples {
             modelUsageSamples = nextModelUsageSamples
         }
-        if projectBreakdown != nextProjectBreakdown {
+        if includeProjectBreakdown && projectBreakdown != nextProjectBreakdown {
             projectBreakdown = nextProjectBreakdown
         }
         if allTimeCostUSD != nextAllTimeCostUSD {

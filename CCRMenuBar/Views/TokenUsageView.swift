@@ -407,9 +407,12 @@ struct ProviderCostUsage: Identifiable {
 }
 
 struct ProjectUsageDetailView: View {
-    let projects: [ProjectUsage]
-    let refresh: () -> Void
+    @ObservedObject var usageService: TokenUsageService
     @Environment(\.dismiss) private var dismiss
+
+    private var projects: [ProjectUsage] {
+        usageService.projectBreakdown
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -424,7 +427,7 @@ struct ProjectUsageDetailView: View {
                 Spacer()
 
                 Button {
-                    refresh()
+                    usageService.refreshProjectUsage()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 12, weight: .semibold))
@@ -469,6 +472,9 @@ struct ProjectUsageDetailView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            usageService.refreshProjectUsage()
         }
         .frame(width: 640, height: 420)
     }

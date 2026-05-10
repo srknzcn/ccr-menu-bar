@@ -76,9 +76,7 @@ struct CCRMenuBarApp: App {
         .defaultSize(width: 760, height: 600)
 
         Window("Project Usage", id: "project-usage") {
-            ProjectUsageDetailView(projects: tokenUsageService.projectBreakdown) {
-                tokenUsageService.refresh()
-            }
+            ProjectUsageDetailView(usageService: tokenUsageService)
         }
         .defaultSize(width: 560, height: 420)
     }
