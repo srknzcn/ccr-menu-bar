@@ -9,6 +9,7 @@ A native macOS menu bar application for managing [Claude Code Router (CCR)](http
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-blue)
+![Version](https://img.shields.io/github/v/release/srknzcn/ccr-menu-bar?color=yellow)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## What is Claude Code Router?
